@@ -90,3 +90,21 @@ class BenchmarkComparisonResult(BaseModel):
     trace_path: str
     results: list[BenchmarkResult]
     winner_by_accuracy: str
+
+
+class JitRoutingDecision(BaseModel):
+    """Enriched routing decision from the JIT inference loop.
+
+    Includes the base prediction plus paging-awareness and runtime activation status.
+    """
+
+    session_id: str
+    adapter_id: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    candidates: list[str] = Field(default_factory=list)
+    reason: str
+    paging_status: Literal["warm_hit", "cold_miss"]
+    warm_adapters: list[str] = Field(default_factory=list)
+    latency_prediction_ms: float = Field(ge=0.0)
+    sequence_id: int | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

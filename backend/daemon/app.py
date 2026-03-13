@@ -12,18 +12,30 @@ from backend.contracts.schemas import (
     BenchmarkRequest,
     BenchmarkResult,
     HealthResponse,
+    JitRoutingDecision,
     TelemetryBatchRequest,
     TelemetryBatchResponse,
     TelemetryEvent,
     TelemetryStreamEvent,
 )
+from backend.paging.simulator import PagingSimulator
+from backend.routing.jit_router import JitRouter
 from backend.routing.structural import StructuralRouter
+from backend.runtime.mock_runtime import MockRuntime
 from backend.telemetry.buffer import TelemetryBuffer
 from backend.telemetry.sequence_tracker import SequenceTracker
 from backend.telemetry.trace_recorder import TraceRecorder
 
 app = FastAPI(title="LoRA-JIT Daemon", version="0.1.0")
+
+# Legacy bare-prediction router (kept for backward compat)
 router = StructuralRouter()
+
+# Full JIT inference loop: predict → page → activate
+_jit_paging = PagingSimulator(max_hot_adapters=3)
+_jit_backend = MockRuntime()
+jit_router = JitRouter(backend=_jit_backend, paging=_jit_paging, predictor=StructuralRouter())
+
 benchmark_runner = BenchmarkRunner()
 telemetry_buffer = TelemetryBuffer(capacity=20_000)
 sequence_tracker = SequenceTracker()
@@ -37,7 +49,20 @@ def health() -> HealthResponse:
 
 @app.post("/telemetry/route")
 def route_from_telemetry(event: TelemetryEvent):
+    """Legacy bare-prediction endpoint (no paging, no runtime activation)."""
     return router.predict(event)
+
+
+@app.post("/jit/route", response_model=JitRoutingDecision)
+def jit_route(event: TelemetryStreamEvent) -> JitRoutingDecision:
+    """Full JIT inference loop: predict adapter → update paging → activate in runtime.
+
+    This is the production path. Returns an enriched decision that includes
+    the paging status (warm_hit vs. cold_miss), the current hot-set, and
+    the wall-clock prediction latency so the extension can surface VRAM
+    pressure to the user.
+    """
+    return jit_router.route(event)
 
 
 @app.post("/telemetry/stream", response_model=TelemetryBatchResponse)

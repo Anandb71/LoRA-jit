@@ -24,6 +24,7 @@ Prove that structural routing can beat text/embedding baselines in adapter predi
 4. Run benchmark replay on a sample trace: `scripts/run-benchmark.py examples/sample-trace.json --compare`.
 5. Compile NDJSON telemetry into benchmark rows: `scripts/compile-trace.py traces/<session>.ndjson --rows-output benchmark.json --windows-output windows.json`.
 6. Auto-label compiled rows with ontology constraints: `scripts/annotate-benchmark.py benchmark.json --output benchmark.annotated.json --print-ontology`.
+7. Run the **full JIT inference loop** — send a live stream event and get a paging-aware decision: `POST /jit/route` on the running daemon. Returns the predicted adapter, paging status (`warm_hit`/`cold_miss`), current hot-set, and wall-clock prediction latency.
 
 ## Development standards
 
@@ -51,6 +52,7 @@ Prove that structural routing can beat text/embedding baselines in adapter predi
 - LoRA-JIT uses an ontology-constrained labeling protocol.
 - Labels include a primary adapter plus acceptable alternatives.
 - Benchmark scoring is weighted for ambiguity-aware evaluation.
+- Drop in `LlmLabelProvider` (set `LORA_JIT_LLM_API_BASE` + `LORA_JIT_LLM_API_KEY`) to upgrade from heuristic to LLM-powered annotation.
 
 ## Live telemetry defaults
 
