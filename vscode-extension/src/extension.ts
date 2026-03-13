@@ -40,6 +40,9 @@ type JitRoutingDecision = {
   paging_status: 'warm_hit' | 'cold_miss';
   warm_adapters: string[];
   latency_prediction_ms: number;
+  activation_latency_ms: number;
+  latency_total_ms: number;
+  runtime_backend: string;
   sequence_id: number | null;
 };
 
@@ -113,8 +116,11 @@ function updateStatusBar(decision: JitRoutingDecision): void {
     `Adapter  : ${decision.adapter_id}`,
     `Confidence: ${pct}%`,
     `Paging   : ${decision.paging_status}`,
+    `Backend  : ${decision.runtime_backend}`,
     `Hot-set  : [${decision.warm_adapters.join(', ')}]`,
-    `Latency  : ${decision.latency_prediction_ms.toFixed(2)}ms`,
+    `Route    : ${decision.latency_prediction_ms.toFixed(2)}ms`,
+    `VRAM Load: ${decision.activation_latency_ms.toFixed(2)}ms`,
+    `Total JIT: ${decision.latency_total_ms.toFixed(2)}ms`,
     `Reason   : ${decision.reason}`,
     '',
     'Click to open JIT log',
@@ -136,18 +142,22 @@ function logJitDecision(decision: JitRoutingDecision): void {
 
   if (decision.paging_status === 'warm_hit') {
     jitChannel.appendLine(
-      `[${ts}] [CACHE]  ${decision.adapter_id}: HIT (warm) | hot-set: [${decision.warm_adapters.join(', ')}]`
+      `[${ts}] [PAGING] ${decision.adapter_id}: HIT → warm reuse | hot-set: [${decision.warm_adapters.join(', ')}]`
     );
   } else {
     const evicted = prevWarmAdapters.filter((a) => !decision.warm_adapters.includes(a));
     const evictedStr = evicted.length > 0 ? ` — evicted: ${evicted.join(', ')} (ARC)` : '';
     jitChannel.appendLine(
-      `[${ts}] [CACHE]  ${decision.adapter_id}: MISS → cold load${evictedStr} | hot-set: [${decision.warm_adapters.join(', ')}]`
+      `[${ts}] [PAGING] ${decision.adapter_id}: MISS → cold load${evictedStr} | hot-set: [${decision.warm_adapters.join(', ')}]`
     );
   }
 
   jitChannel.appendLine(
-    `[${ts}] [INFER]  Active: ${decision.adapter_id} | latency: ${decision.latency_prediction_ms.toFixed(2)}ms`
+    `[${ts}] [INFER]  Active: ${decision.adapter_id} | Backend: ${decision.runtime_backend}`
+  );
+
+  jitChannel.appendLine(
+    `[${ts}] [TIMING] Route: ${decision.latency_prediction_ms.toFixed(2)}ms | VRAM Load: ${decision.activation_latency_ms.toFixed(2)}ms | Total JIT: ${decision.latency_total_ms.toFixed(2)}ms`
   );
 }
 
