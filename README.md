@@ -22,6 +22,7 @@ Prove that structural routing can beat text/embedding baselines in adapter predi
 2. Install dependencies from `pyproject.toml`.
 3. Run the daemon entrypoint at `scripts/run-daemon.py`.
 4. Run benchmark replay on a sample trace: `scripts/run-benchmark.py examples/sample-trace.json --compare`.
+5. Compile NDJSON telemetry into benchmark rows: `scripts/compile-trace.py traces/<session>.ndjson --rows-output benchmark.json --windows-output windows.json`.
 
 ## Development standards
 

@@ -8,6 +8,7 @@
 - **Runtime (`backend/runtime`)**: interface for backend-specific adapter loading/activation.
 - **Paging (`backend/paging`)**: adapter residency simulation for cache/miss accounting.
 - **Benchmark (`backend/benchmark`)**: replay runner over recorded traces.
+- **Trace Compiler (`backend/benchmark`)**: state reconstructor + semantic windowing from NDJSON logs.
 - **Telemetry Buffer (`backend/telemetry`)**: in-memory rolling buffer for streamed editor events.
 - **Sequence Tracker (`backend/telemetry`)**: per-session/per-file monotonic sequence continuity checks.
 - **Trace Recorder (`backend/telemetry`)**: append-only NDJSON session logs for replay.
@@ -36,6 +37,13 @@
 - Daemon detects sequence gaps and returns `resync_files` hints for heartbeat repair.
 - Cursor events include semantic context (`symbol_path`) from document symbols when available.
 - Daemon stores events in rolling memory for replay/trace capture workflows.
+
+## Trace compiler flow (Phase 1)
+
+1. Reconstruct per-file text state by replaying ordered deltas and heartbeat full-text snapshots.
+2. Segment timeline into semantic windows whenever file/symbol context changes.
+3. Emit benchmark rows with `label_status = pending_offline_annotation` and embedded code block context.
+4. (Next phase) offline auto-labeler assigns high-quality `expected_adapter` ground truth.
 
 ## Why this shape
 

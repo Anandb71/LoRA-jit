@@ -31,7 +31,15 @@ Optional event metadata fields used by text/embedding baselines:
 - Single predictor: run `scripts/run-benchmark.py <trace> --predictor structural|text|embedding`
 - Comparison run: `scripts/run-benchmark.py <trace> --compare`
 
+## Trace-to-benchmark compile (Phase 1)
+
+- Compile append-only NDJSON session traces into semantic windows + benchmark rows:
+	- `scripts/compile-trace.py <trace.ndjson> --rows-output <rows.json> --windows-output <windows.json>`
+- Phase 1 output rows are intentionally unlabeled (`label_status = pending_offline_annotation`).
+- Next phase (offline auto-labeler) should assign `expected_adapter` using a heavy model over `metadata.code_block`.
+
 ## MVP limitations
 
 - Embedding baseline is a deterministic proxy, not a model-embedding runtime yet.
 - Paging is simulated rather than direct GPU residency management.
+- Compiler currently emits unlabeled fixtures; offline ground-truth annotation is the next stage.
