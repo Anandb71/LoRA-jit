@@ -59,6 +59,10 @@
       {
         "command": "lora-jit.sendSampleTelemetry",
         "title": "LoRA-JIT: Send Sample Telemetry"
+      },
+      {
+        "command": "lora-jit.showJitLog",
+        "title": "LoRA-JIT: Show JIT Log"
       }
     ]
   },

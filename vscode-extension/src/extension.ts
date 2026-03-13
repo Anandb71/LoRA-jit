@@ -2,6 +2,10 @@ import * as vscode from 'vscode';
 
 const DAEMON_BASE_URL = 'http://127.0.0.1:8765';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 type TelemetryEventType = 'cursor' | 'text_change' | 'document_open' | 'document_save' | 'heartbeat';
 
 type TextChangeDelta = {
@@ -27,12 +31,48 @@ type TelemetryStreamEvent = {
   metadata: Record<string, unknown>;
 };
 
+type JitRoutingDecision = {
+  session_id: string;
+  adapter_id: string;
+  confidence: number;
+  candidates: string[];
+  reason: string;
+  paging_status: 'warm_hit' | 'cold_miss';
+  warm_adapters: string[];
+  latency_prediction_ms: number;
+  sequence_id: number | null;
+};
+
+// ---------------------------------------------------------------------------
+// Module state
+// ---------------------------------------------------------------------------
+
 const sessionId = `vscode-${Date.now()}`;
 let telemetryBuffer: TelemetryStreamEvent[] = [];
 let flushTimer: NodeJS.Timeout | undefined;
+let jitRouteTimer: NodeJS.Timeout | undefined;
 const fileSequence = new Map<string, number>();
 const fileChangeCounter = new Map<string, number>();
 const pendingResyncFiles = new Set<string>();
+
+// JIT visualization state
+let prevWarmAdapters: string[] = [];
+let lastJitEvent: TelemetryStreamEvent | undefined;
+let statusBar: vscode.StatusBarItem;
+let jitChannel: vscode.OutputChannel;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatTimestamp(): string {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  const ms = String(now.getMilliseconds()).padStart(3, '0');
+  return `${h}:${m}:${s}.${ms}`;
+}
 
 function nextSequence(filePath: string): number {
   const value = (fileSequence.get(filePath) ?? 0) + 1;
@@ -59,6 +99,96 @@ function getTelemetryConfig(): {
     hardBufferLimit: cfg.get<number>('hardBufferLimit', 1000),
     heartbeatEveryNChanges: cfg.get<number>('heartbeatEveryNChanges', 40)
   };
+}
+
+// ---------------------------------------------------------------------------
+// JIT visualization
+// ---------------------------------------------------------------------------
+
+function updateStatusBar(decision: JitRoutingDecision): void {
+  const label = decision.paging_status === 'warm_hit' ? 'warm' : 'cold';
+  const pct = Math.round(decision.confidence * 100);
+  statusBar.text = `$(zap) JIT: ${decision.adapter_id} (${label})`;
+  statusBar.tooltip = [
+    `Adapter  : ${decision.adapter_id}`,
+    `Confidence: ${pct}%`,
+    `Paging   : ${decision.paging_status}`,
+    `Hot-set  : [${decision.warm_adapters.join(', ')}]`,
+    `Latency  : ${decision.latency_prediction_ms.toFixed(2)}ms`,
+    `Reason   : ${decision.reason}`,
+    '',
+    'Click to open JIT log',
+  ].join('\n');
+  statusBar.backgroundColor =
+    decision.paging_status === 'cold_miss'
+      ? new vscode.ThemeColor('statusBarItem.warningBackground')
+      : undefined;
+}
+
+function logJitDecision(decision: JitRoutingDecision): void {
+  const ts = formatTimestamp();
+  const pct = (decision.confidence * 100).toFixed(0);
+  const seqTag = decision.sequence_id != null ? ` — seq #${decision.sequence_id}` : '';
+
+  jitChannel.appendLine(
+    `[${ts}] [ROUTER] Intent: ${decision.adapter_id} (${pct}%) via ${decision.reason}${seqTag}`
+  );
+
+  if (decision.paging_status === 'warm_hit') {
+    jitChannel.appendLine(
+      `[${ts}] [CACHE]  ${decision.adapter_id}: HIT (warm) | hot-set: [${decision.warm_adapters.join(', ')}]`
+    );
+  } else {
+    const evicted = prevWarmAdapters.filter((a) => !decision.warm_adapters.includes(a));
+    const evictedStr = evicted.length > 0 ? ` — evicted: ${evicted.join(', ')} (ARC)` : '';
+    jitChannel.appendLine(
+      `[${ts}] [CACHE]  ${decision.adapter_id}: MISS → cold load${evictedStr} | hot-set: [${decision.warm_adapters.join(', ')}]`
+    );
+  }
+
+  jitChannel.appendLine(
+    `[${ts}] [INFER]  Active: ${decision.adapter_id} | latency: ${decision.latency_prediction_ms.toFixed(2)}ms`
+  );
+}
+
+async function routeJit(event: TelemetryStreamEvent): Promise<void> {
+  try {
+    const response = await fetch(`${DAEMON_BASE_URL}/jit/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    });
+
+    if (!response.ok) {
+      statusBar.text = '$(zap) JIT: error';
+      statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+      return;
+    }
+
+    const decision = (await response.json()) as JitRoutingDecision;
+    logJitDecision(decision);
+    updateStatusBar(decision);
+    prevWarmAdapters = decision.warm_adapters;
+  } catch {
+    // Daemon offline — degrade gracefully, never throw into the editor
+    statusBar.text = '$(zap) JIT: offline';
+    statusBar.tooltip = `LoRA-JIT daemon not reachable at ${DAEMON_BASE_URL}`;
+    statusBar.backgroundColor = undefined;
+  }
+}
+
+/** Debounce JIT route calls — at most one in-flight per 200ms. */
+function scheduleJitRoute(event: TelemetryStreamEvent): void {
+  lastJitEvent = event;
+  if (jitRouteTimer) {
+    return;
+  }
+  jitRouteTimer = setTimeout(() => {
+    jitRouteTimer = undefined;
+    if (lastJitEvent) {
+      void routeJit(lastJitEvent);
+    }
+  }, 200);
 }
 
 async function resolveActiveSymbolPath(
@@ -299,7 +429,7 @@ function wireLiveTelemetry(context: vscode.ExtensionContext): void {
       }
 
       void resolveActiveSymbolPath(event.textEditor.document, active).then((symbolPath) => {
-        enqueueTelemetry({
+        const streamEvent: TelemetryStreamEvent = {
           ...buildBaseEvent('cursor', event.textEditor.document),
           sequence_id: nextSequence(event.textEditor.document.fileName),
           cursor_line: active.line,
@@ -309,19 +439,34 @@ function wireLiveTelemetry(context: vscode.ExtensionContext): void {
           metadata: {
             source: 'vscode-extension',
             semantic_context: symbolPath.join('::')
-          }
-        });
+          },
+        };
+        enqueueTelemetry(streamEvent);
+        // Drive the JIT inference loop on every cursor move.
+        scheduleJitRoute(streamEvent);
       });
     })
   );
 }
 
 export function activate(context: vscode.ExtensionContext): void {
+  jitChannel = vscode.window.createOutputChannel('LoRA-JIT');
+  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBar.text = '$(zap) JIT: idle';
+  statusBar.tooltip = 'LoRA-JIT adapter router — move cursor to activate';
+  statusBar.command = 'lora-jit.showJitLog';
+  statusBar.show();
+
   wireLiveTelemetry(context);
 
   context.subscriptions.push(
+    statusBar,
+    jitChannel,
     vscode.commands.registerCommand('lora-jit.pingDaemon', pingDaemon),
-    vscode.commands.registerCommand('lora-jit.sendSampleTelemetry', sendSampleTelemetry)
+    vscode.commands.registerCommand('lora-jit.sendSampleTelemetry', sendSampleTelemetry),
+    vscode.commands.registerCommand('lora-jit.showJitLog', () => {
+      jitChannel.show(true);
+    })
   );
 }
 
@@ -329,6 +474,10 @@ export function deactivate(): void {
   if (flushTimer) {
     clearTimeout(flushTimer);
     flushTimer = undefined;
+  }
+  if (jitRouteTimer) {
+    clearTimeout(jitRouteTimer);
+    jitRouteTimer = undefined;
   }
   flushTelemetryNow();
 }
