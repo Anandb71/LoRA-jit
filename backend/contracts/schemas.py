@@ -33,12 +33,15 @@ class TextChangeDelta(BaseModel):
 
 class TelemetryStreamEvent(BaseModel):
     session_id: str
-    event_type: Literal["cursor", "text_change", "document_open", "document_save"]
+    event_type: Literal["cursor", "text_change", "document_open", "document_save", "heartbeat"]
     file_path: str
     language_id: str
+    sequence_id: int = Field(ge=1)
     document_version: int | None = None
     cursor_line: int | None = Field(default=None, ge=0)
     cursor_column: int | None = Field(default=None, ge=0)
+    full_text: str | None = None
+    symbol_path: list[str] = Field(default_factory=list)
     deltas: list[TextChangeDelta] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -51,6 +54,8 @@ class TelemetryBatchRequest(BaseModel):
 class TelemetryBatchResponse(BaseModel):
     accepted: int
     buffered_total: int
+    resync_files: list[str] = Field(default_factory=list)
+    sequence_gaps_detected: int = 0
 
 
 class RoutingDecision(BaseModel):

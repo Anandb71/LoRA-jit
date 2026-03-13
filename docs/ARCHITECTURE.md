@@ -9,6 +9,8 @@
 - **Paging (`backend/paging`)**: adapter residency simulation for cache/miss accounting.
 - **Benchmark (`backend/benchmark`)**: replay runner over recorded traces.
 - **Telemetry Buffer (`backend/telemetry`)**: in-memory rolling buffer for streamed editor events.
+- **Sequence Tracker (`backend/telemetry`)**: per-session/per-file monotonic sequence continuity checks.
+- **Trace Recorder (`backend/telemetry`)**: append-only NDJSON session logs for replay.
 - **VS Code Extension (`vscode-extension`)**: telemetry source and control-plane UX.
 
 ## API highlights
@@ -17,6 +19,8 @@
 - `POST /telemetry/route` — single routing decision from telemetry.
 - `POST /telemetry/stream` — fire-and-forget batched event ingest for extension pipeline.
 - `GET /telemetry/recent` — recent buffered events for trace validation/debugging.
+- `GET /trace/sessions` — list captured trace sessions.
+- `GET /trace/session/{session_id}` — resolve on-disk NDJSON path for a trace session.
 - `POST /benchmark/run` — run one predictor against trace.
 - `POST /benchmark/compare` — run structural/text/embedding and return winner.
 
@@ -24,8 +28,13 @@
 
 - Extension records `document_open`, `document_save`, `cursor`, and `text_change` events.
 - Text edits are sent as **deltas** (range + inserted text), not full-document snapshots.
+- Every event carries a per-file monotonic `sequence_id`.
 - Events are buffered and flushed on a configurable tick (`loraJit.telemetry.tickMs`, default 75ms).
+- Extension enforces a hard queue ceiling (`loraJit.telemetry.hardBufferLimit`, default 1000) and drops queued events to protect IDE memory.
+- Extension emits full-text `heartbeat` events periodically and on document open/save.
 - Transport is intentionally **fire-and-forget** (extension does not await ingestion response).
+- Daemon detects sequence gaps and returns `resync_files` hints for heartbeat repair.
+- Cursor events include semantic context (`symbol_path`) from document symbols when available.
 - Daemon stores events in rolling memory for replay/trace capture workflows.
 
 ## Why this shape

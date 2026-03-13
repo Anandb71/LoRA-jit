@@ -34,6 +34,20 @@
           "minimum": 10,
           "maximum": 5000,
           "description": "Maximum queued telemetry events before immediate flush."
+        },
+        "loraJit.telemetry.hardBufferLimit": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 20000,
+          "description": "Hard cap for extension memory queue; events are dropped if this is reached."
+        },
+        "loraJit.telemetry.heartbeatEveryNChanges": {
+          "type": "number",
+          "default": 40,
+          "minimum": 5,
+          "maximum": 1000,
+          "description": "Emit a full-text heartbeat after N text-change events for desync recovery."
         }
       }
     },
