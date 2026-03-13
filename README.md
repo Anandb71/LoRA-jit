@@ -15,15 +15,7 @@ Quick links: [5-minute demo](#5-minute-demo-) · [Benchmark workflow](#full-benc
 
 ![LoRA-JIT demo teaser](./docs/assets/demo-teaser.svg)
 
-> Record-ready scene: open `demo/record-scene.html`, screen record one loop, then export your asset to `demo/lora-jit-demo.gif` (or `demo/lora-jit-demo.mp4`) and replace this teaser.
-
-![LoRA-JIT live demo](./demo/lora-jit-demo.gif)
-
-If your platform supports video embeds, use:
-
-```html
-<video src="./demo/lora-jit-demo.mp4" autoplay muted loop playsinline></video>
-```
+Public demo clip will be embedded here. The current teaser shows the exact telemetry flow: route decision, paging state, runtime backend, and end-to-end JIT timing.
 
 ## Why this project exists
 
