@@ -7,6 +7,24 @@ It records live coding context, reconstructs semantic windows from telemetry, be
 [![CI](https://github.com/Anandb71/LoRA-jit/actions/workflows/ci.yml/badge.svg)](https://github.com/Anandb71/LoRA-jit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
+> **Tagline:** context-aware adapter routing + paging telemetry you can actually see.
+
+Quick links: [5-minute demo](#5-minute-demo-) · [Benchmark workflow](#full-benchmark-workflow) · [Real runtime backend](#real-runtime-backend-opt-in) · [Development](#development)
+
+## Demo Preview 🎬
+
+![LoRA-JIT demo teaser](./docs/assets/demo-teaser.svg)
+
+> Record-ready scene: open `demo/record-scene.html`, screen record one loop, then export your asset to `demo/lora-jit-demo.gif` (or `demo/lora-jit-demo.mp4`) and replace this teaser.
+
+![LoRA-JIT live demo](./demo/lora-jit-demo.gif)
+
+If your platform supports video embeds, use:
+
+```html
+<video src="./demo/lora-jit-demo.mp4" autoplay muted loop playsinline></video>
+```
+
 ## Why this project exists
 
 Multi-adapter systems are only useful if they can answer one question cheaply and correctly:
@@ -131,9 +149,10 @@ That transition is the shortest possible proof that the paging/orchestration loo
 Expected log shape:
 
 ```text
-[14:02:05.112] [ROUTER] Intent: sql_postgres (94%) via top structural token — seq #42
-[14:02:05.112] [CACHE]  sql_postgres: MISS → cold load — evicted: react_hooks (ARC) | hot-set: [python_core, sql_postgres]
-[14:02:05.112] [INFER]  Active: sql_postgres | latency: 1.34ms
+[14:02:05.112] [ROUTER] Intent: sql_postgres (94%) via structural token — seq #42
+[14:02:05.112] [PAGING] sql_postgres: MISS → cold load — evicted: react_hooks (ARC) | hot-set: [python_core, sql_postgres]
+[14:02:05.112] [INFER]  Active: sql_postgres | Backend: pytorch-peft
+[14:02:05.112] [TIMING] Route: 0.50ms | VRAM Load: 14.20ms | Total JIT: 14.70ms
 ```
 
 ## Full benchmark workflow

@@ -1,0 +1,38 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="LoRA-JIT Demo Teaser">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0b1220"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="60" y="60" width="1080" height="510" rx="14" fill="url(#card)" stroke="#263244"/>
+
+  <text x="95" y="125" fill="#e5e7eb" font-family="Segoe UI, Arial, sans-serif" font-size="46" font-weight="700">LoRA-JIT</text>
+  <text x="95" y="165" fill="#93c5fd" font-family="Segoe UI, Arial, sans-serif" font-size="22">Context-aware JIT LoRA Paging in VS Code</text>
+
+  <rect x="95" y="205" width="1010" height="300" rx="10" fill="#0a0f1a" stroke="#1f2937"/>
+  <text x="120" y="255" fill="#38bdf8" font-family="Consolas, monospace" font-size="22">[ROUTER]</text>
+  <text x="260" y="255" fill="#e5e7eb" font-family="Consolas, monospace" font-size="22">Intent: sql_postgres (94%) via structural token</text>
+
+  <text x="120" y="305" fill="#f59e0b" font-family="Consolas, monospace" font-size="22">[PAGING]</text>
+  <text x="260" y="305" fill="#e5e7eb" font-family="Consolas, monospace" font-size="22">MISS → cold load — evicted: react_hooks (ARC)</text>
+
+  <text x="120" y="355" fill="#c4b5fd" font-family="Consolas, monospace" font-size="22">[INFER]</text>
+  <text x="260" y="355" fill="#e5e7eb" font-family="Consolas, monospace" font-size="22">Backend: pytorch-peft | Active: sql_postgres</text>
+
+  <text x="120" y="405" fill="#22c55e" font-family="Consolas, monospace" font-size="22">[TIMING]</text>
+  <text x="260" y="405" fill="#e5e7eb" font-family="Consolas, monospace" font-size="22">Route: 0.50ms | VRAM Load: 14.20ms | Total JIT: 14.70ms</text>
+
+  <rect x="95" y="527" width="360" height="30" rx="6" fill="#261800" stroke="#7c2d12"/>
+  <text x="112" y="548" fill="#fed7aa" font-family="Consolas, monospace" font-size="16">$(zap) JIT: sql_postgres (cold)</text>
+
+  <rect x="470" y="527" width="360" height="30" rx="6" fill="#052e1b" stroke="#166534"/>
+  <text x="487" y="548" fill="#bbf7d0" font-family="Consolas, monospace" font-size="16">$(zap) JIT: sql_postgres (warm)</text>
+
+  <text x="855" y="548" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif" font-size="15">Drop your GIF at demo/lora-jit-demo.gif</text>
+</svg>
