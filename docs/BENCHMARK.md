@@ -1,64 +1,136 @@
-# Benchmark Plan (MVP)
+# Benchmark Guide
 
-## Objective
+## Goal
 
-Measure whether structural routing predicts the target adapter more accurately than fallback methods while reducing simulated cold misses.
+The benchmark system exists to answer a concrete question:
 
-## Current trace schema
+> **Does the router choose the right adapter often enough, and does that choice reduce cold misses?**
 
-Each trace row contains:
-- `event`: telemetry payload compatible with `TelemetryEvent`
-- `expected_adapter`: ground truth adapter label
+LoRA-JIT treats routing as a measurable systems problem, not a vibes problem.
 
-Optional event metadata fields used by text/embedding baselines:
-- `metadata.query`: natural-language intent text
-- `metadata.prompt`: fallback prompt text
+## What gets measured
 
-## Reported metrics
+Each benchmark run reports:
 
-- Top-1 accuracy
-- Cache miss rate (from paging simulator)
-- Average prediction latency (ms)
+- **Top-1 accuracy** — exact-match score, or weighted score when multi-label ground truth is present
+- **Cache miss rate** — fraction of route decisions that caused a cold miss in `PagingSimulator`
+- **Average prediction latency (ms)** — wall-clock route time for the predictor under test
 
-## Predictors implemented
+## Predictors currently implemented
 
-- `structural`: deterministic structural token heuristic.
-- `text`: lexical overlap over query/prompt + context fields.
-- `embedding`: deterministic pseudo-embedding cosine baseline.
+- `structural` — deterministic structural token heuristic
+- `text` — lexical overlap over file path, language, symbols, and `metadata.query`/`metadata.prompt`
+- `embedding` — deterministic pseudo-embedding cosine baseline
 
-## Running benchmark replay
+These are intentionally transparent baselines. The benchmark harness is designed to survive future predictor upgrades.
 
-- Single predictor: run `scripts/run-benchmark.py <trace> --predictor structural|text|embedding`
-- Comparison run: `scripts/run-benchmark.py <trace> --compare`
+## Input row schema
 
-## Trace-to-benchmark compile (Phase 1)
+Each benchmark row contains:
 
-- Compile append-only NDJSON session traces into semantic windows + benchmark rows:
-	- `scripts/compile-trace.py <trace.ndjson> --rows-output <rows.json> --windows-output <windows.json>`
-- Phase 1 output rows are intentionally unlabeled (`label_status = pending_offline_annotation`).
-- Next phase (offline auto-labeler) should assign `expected_adapter` using a heavy model over `metadata.code_block`.
+- `event` — payload compatible with `TelemetryEvent`
+- `expected_adapter` — simple ground truth label, or
+- `expected_label` — structured label with a primary adapter and acceptable alternatives
 
-## Auto-labeling and ontology constraints (Phase 2)
+Optional metadata fields used by the text/embedding baselines:
 
-- Adapters must come from a predefined ontology (see `docs/ADAPTER_ONTOLOGY.md`).
-- Annotate compiled rows with structured labels:
-	- `scripts/annotate-benchmark.py <rows.json> --output <annotated.json> --print-ontology`
-- Structured label schema:
-	- `primary_adapter` (must exist in ontology)
-	- `acceptable_alternatives` (ontology-constrained)
-	- `confidence` (0..1)
-	- `reasoning`
+- `metadata.query`
+- `metadata.prompt`
 
-### Scoring rule
+## Fastest way to run the benchmark
 
-- Predict `primary_adapter` => **1.0**
-- Predict one of `acceptable_alternatives` => **0.5**
-- Otherwise => **0.0**
+### Compare all predictors on the sample trace
 
-This weighted score is what `top1_accuracy` currently reports when `expected_label` is present.
+```powershell
+python scripts/run-benchmark.py examples/sample-trace.json --compare
+```
 
-## MVP limitations
+### Run only one predictor
 
-- Embedding baseline is a deterministic proxy, not a model-embedding runtime yet.
-- Paging is simulated rather than direct GPU residency management.
-- Default auto-labeler is currently deterministic heuristic provider; external God-model provider integration is next.
+```powershell
+python scripts/run-benchmark.py examples/sample-trace.json --predictor structural
+```
+
+## Real workflow: trace → rows → labels → benchmark
+
+### 1) Compile an NDJSON session trace
+
+```powershell
+python scripts/compile-trace.py traces/<session>.ndjson --rows-output benchmark.rows.json --windows-output benchmark.windows.json
+```
+
+What this does:
+
+- reconstructs file text from deltas and heartbeats
+- segments the timeline into semantic windows
+- emits unlabeled benchmark rows with embedded code context
+
+### 2) Annotate the compiled rows
+
+```powershell
+python scripts/annotate-benchmark.py benchmark.rows.json --output benchmark.annotated.json --print-ontology
+```
+
+What this does:
+
+- adds `expected_label`
+- validates the label against the adapter ontology
+- copies `primary_adapter` into `expected_adapter` for compatibility
+
+### 3) Benchmark the annotated rows
+
+```powershell
+python scripts/run-benchmark.py benchmark.annotated.json --compare
+```
+
+## Multi-label scoring
+
+When `expected_label` is present, scoring is weighted:
+
+- predict `primary_adapter` → **1.0**
+- predict one of `acceptable_alternatives` → **0.5**
+- predict anything else → **0.0**
+
+This is what `top1_accuracy` currently reports for multi-label benchmark rows.
+
+## Why the ontology matters
+
+Without a fixed ontology, offline label generation can hallucinate adapters that do not exist in the runtime system.
+
+LoRA-JIT prevents that by requiring all labels to use adapter IDs from [`docs/ADAPTER_ONTOLOGY.md`](./ADAPTER_ONTOLOGY.md).
+
+That gives the benchmark two important properties:
+
+- labels are **machine-checkable**
+- comparisons remain **scientifically defensible**
+
+## How to interpret current results
+
+At the time of writing, `examples/sample-trace.json` is a smoke-test benchmark, not a realistic production benchmark.
+
+Why?
+
+- it contains only **2 rows**
+- both are easy examples
+- all three predictors score `1.0`
+
+That result tells you the benchmark harness is working. It does **not** tell you the routing problem is solved.
+
+## Current limitations
+
+- The embedding baseline is a deterministic proxy, not a true embedding runtime.
+- Paging is simulated rather than tied to actual GPU residency.
+- The default auto-labeler is heuristic; `LlmLabelProvider` is intended for offline teacher-style labeling, not the hot path.
+- The bundled example dataset is too small to support strong routing claims.
+
+## What a serious next benchmark looks like
+
+To make the benchmark genuinely persuasive, the next dataset should include:
+
+- at least hundreds of windows, not two
+- intentionally ambiguous cases
+- cross-language tasks
+- repeated adapter reuse patterns to stress paging behavior
+- enough semantic diversity to separate structural from text/embedding approaches
+
+When that exists, LoRA-JIT will be able to make stronger claims than “the demo works.” It will be able to make performance claims with evidence.
