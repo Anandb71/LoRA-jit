@@ -1,0 +1,36 @@
+{
+  "name": "lora-jit",
+  "displayName": "LoRA-JIT",
+  "description": "Structural routing telemetry client for LoRA-JIT daemon",
+  "version": "0.1.0",
+  "publisher": "anandb71",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "lora-jit.pingDaemon",
+        "title": "LoRA-JIT: Ping Daemon"
+      },
+      {
+        "command": "lora-jit.sendSampleTelemetry",
+        "title": "LoRA-JIT: Send Sample Telemetry"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "lint": "tsc -p ./ --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/vscode": "^1.100.0",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,26 @@
+[
+  {
+    "event": {
+      "session_id": "demo-1",
+      "file_path": "src/services/payment/processor.py",
+      "language_id": "python",
+      "cursor_line": 42,
+      "cursor_column": 8,
+      "symbols_in_scope": ["PaymentService", "validate_card"],
+      "metadata": {"workspace": "demo"}
+    },
+    "expected_adapter": "paymentservice"
+  },
+  {
+    "event": {
+      "session_id": "demo-1",
+      "file_path": "src/services/payment/processor.py",
+      "language_id": "python",
+      "cursor_line": 58,
+      "cursor_column": 2,
+      "symbols_in_scope": ["PaymentService", "charge"],
+      "metadata": {"workspace": "demo"}
+    },
+    "expected_adapter": "paymentservice"
+  }
+]
