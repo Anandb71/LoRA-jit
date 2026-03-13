@@ -21,7 +21,7 @@ from backend.contracts.schemas import (
 from backend.paging.simulator import PagingSimulator
 from backend.routing.jit_router import JitRouter
 from backend.routing.structural import StructuralRouter
-from backend.runtime.mock_runtime import MockRuntime
+from backend.runtime.factory import create_runtime_backend
 from backend.telemetry.buffer import TelemetryBuffer
 from backend.telemetry.sequence_tracker import SequenceTracker
 from backend.telemetry.trace_recorder import TraceRecorder
@@ -33,7 +33,7 @@ router = StructuralRouter()
 
 # Full JIT inference loop: predict → page → activate
 _jit_paging = PagingSimulator(max_hot_adapters=3)
-_jit_backend = MockRuntime()
+_jit_backend = create_runtime_backend()
 jit_router = JitRouter(backend=_jit_backend, paging=_jit_paging, predictor=StructuralRouter())
 
 benchmark_runner = BenchmarkRunner()

@@ -36,7 +36,7 @@ What is real right now:
 What is still simulated:
 
 - Adapter residency is tracked by `PagingSimulator`
-- Runtime activation uses `MockRuntime`
+- Runtime activation uses `MockRuntime` by default, with an opt-in `PyTorchPeftRuntime` scaffold for local PEFT-backed hot-swapping
 - The live router still uses a deterministic baseline predictor, not a trained model
 
 That means the **systems architecture is real and testable today**, while the runtime backend and routing intelligence are the next realism upgrades.
@@ -161,6 +161,45 @@ python scripts/annotate-benchmark.py benchmark.rows.json --output benchmark.anno
 ```powershell
 python scripts/run-benchmark.py benchmark.annotated.json --compare
 ```
+
+## Real runtime backend (opt-in)
+
+LoRA-JIT now includes a **`PyTorchPeftRuntime` scaffold** for replacing `MockRuntime` with a local PEFT-backed adapter loader.
+
+This path is intentionally opt-in so CI and normal development do not require heavy ML dependencies.
+
+### Default behavior
+
+- `.env` defaults to `LORA_JIT_RUNTIME_BACKEND=mock`
+- the daemon falls back to `MockRuntime` automatically if the PyTorch runtime cannot initialize
+
+### To experiment with the real runtime path
+
+1. Install runtime extras:
+
+```powershell
+python -m pip install -e .[runtime]
+```
+
+2. Place PEFT adapter directories under `adapters/`, one subdirectory per adapter ID.
+
+3. Update `.env`:
+
+```dotenv
+LORA_JIT_RUNTIME_BACKEND=pytorch
+LORA_JIT_BASE_MODEL_ID=Qwen/Qwen1.5-0.5B
+LORA_JIT_ADAPTER_DIR=adapters
+LORA_JIT_DEVICE=cpu
+LORA_JIT_EAGER_LOAD=false
+```
+
+4. Start the daemon normally:
+
+```powershell
+python scripts/run-daemon.py
+```
+
+The daemon will attempt to boot `PyTorchPeftRuntime`. If something is missing, it logs the failure and safely falls back to `MockRuntime`.
 
 ## Current measured accuracy
 

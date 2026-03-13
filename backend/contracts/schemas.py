@@ -106,5 +106,8 @@ class JitRoutingDecision(BaseModel):
     paging_status: Literal["warm_hit", "cold_miss"]
     warm_adapters: list[str] = Field(default_factory=list)
     latency_prediction_ms: float = Field(ge=0.0)
+    activation_latency_ms: float = Field(default=0.0, ge=0.0)
+    latency_total_ms: float = Field(default=0.0, ge=0.0)
+    runtime_backend: str = "mock"
     sequence_id: int | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

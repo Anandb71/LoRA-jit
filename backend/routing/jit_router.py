@@ -54,13 +54,14 @@ class JitRouter:
 
         start = time.perf_counter()
         decision = self._predictor.predict(te)
-        latency_ms = (time.perf_counter() - start) * 1000
+        latency_prediction_ms = (time.perf_counter() - start) * 1000
 
         prev_misses = self._paging.stats.cold_misses
         self._paging.touch(decision.adapter_id)
         paging_hit = self._paging.stats.cold_misses == prev_misses
 
-        self._backend.activate_adapter(decision.adapter_id)
+        activation = self._backend.activate_adapter(decision.adapter_id)
+        latency_total_ms = latency_prediction_ms + activation.activation_latency_ms
 
         return JitRoutingDecision(
             session_id=decision.session_id,
@@ -70,7 +71,10 @@ class JitRouter:
             reason=decision.reason,
             paging_status="warm_hit" if paging_hit else "cold_miss",
             warm_adapters=self._paging.snapshot(),
-            latency_prediction_ms=latency_ms,
+            latency_prediction_ms=latency_prediction_ms,
+            activation_latency_ms=activation.activation_latency_ms,
+            latency_total_ms=latency_total_ms,
+            runtime_backend=self._backend.backend_name,
             sequence_id=event.sequence_id,
         )
 

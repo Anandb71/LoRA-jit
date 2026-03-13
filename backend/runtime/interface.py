@@ -11,7 +11,19 @@ class AdapterState:
     active: bool
 
 
+@dataclass(slots=True)
+class ActivationResult:
+    state: AdapterState
+    activation_latency_ms: float
+    loaded_from_disk: bool
+
+
 class RuntimeBackend(ABC):
+    @property
+    @abstractmethod
+    def backend_name(self) -> str:
+        raise NotImplementedError
+
     @abstractmethod
     def list_adapters(self) -> list[str]:
         raise NotImplementedError
@@ -21,5 +33,5 @@ class RuntimeBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def activate_adapter(self, adapter_id: str) -> AdapterState:
+    def activate_adapter(self, adapter_id: str) -> ActivationResult:
         raise NotImplementedError

@@ -111,10 +111,26 @@ This is important because it turns LoRA-JIT from an invisible backend into an ob
 ### Simulated today
 
 - Adapter residency and eviction policy
-- Runtime activation side effects
+- Runtime activation side effects in the default `MockRuntime` path
 - Learned routing intelligence in the live path
 
 That boundary is deliberate: the system is built so runtime realism can be upgraded without changing the telemetry or benchmark contracts.
+
+## Runtime backend roadmap
+
+The runtime abstraction now supports two tiers:
+
+- **`MockRuntime`** — default backend for tests, CI, and lightweight local development
+- **`PyTorchPeftRuntime`** — opt-in local backend that lazy-loads a base model and hot-swaps PEFT adapters from disk
+
+Why start with raw PyTorch/PEFT instead of vLLM?
+
+- no separate inference server is required
+- easier to run on a standard developer laptop
+- direct access to adapter load/switch latency measurements
+- preserves the runtime abstraction so a future `vLLMRuntime` can be added cleanly
+
+This keeps LoRA-JIT honest: the LLM remains an offline teacher, while the hot path stays local and latency-sensitive.
 
 ## Why the architecture is shaped this way
 

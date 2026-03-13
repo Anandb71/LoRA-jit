@@ -20,6 +20,12 @@ dev = [
   "httpx>=0.27.0",
   "ruff>=0.6.0",
 ]
+runtime = [
+  "torch>=2.4.0",
+  "transformers>=4.44.0",
+  "peft>=0.12.0",
+  "safetensors>=0.4.4",
+]
 
 [tool.setuptools]
 package-dir = {"" = "."}

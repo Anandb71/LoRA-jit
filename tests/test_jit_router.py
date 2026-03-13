@@ -56,6 +56,9 @@ class TestJitRouter:
         assert decision.paging_status in ("warm_hit", "cold_miss")
         assert isinstance(decision.warm_adapters, list)
         assert decision.latency_prediction_ms >= 0.0
+        assert decision.activation_latency_ms >= 0.0
+        assert decision.latency_total_ms >= decision.latency_prediction_ms
+        assert decision.runtime_backend == "mock"
         assert decision.sequence_id == 1
 
     def test_first_call_is_always_cold_miss(self):
@@ -126,6 +129,9 @@ class TestJitRouter:
         assert "paging_status" in body
         assert "warm_adapters" in body
         assert "latency_prediction_ms" in body
+        assert "activation_latency_ms" in body
+        assert "latency_total_ms" in body
+        assert "runtime_backend" in body
 
 
 # ---------------------------------------------------------------------------
