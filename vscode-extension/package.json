@@ -13,6 +13,30 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "LoRA-JIT",
+      "properties": {
+        "loraJit.telemetry.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable live telemetry streaming to daemon."
+        },
+        "loraJit.telemetry.tickMs": {
+          "type": "number",
+          "default": 75,
+          "minimum": 25,
+          "maximum": 2000,
+          "description": "Debounce interval for telemetry batch flush in milliseconds."
+        },
+        "loraJit.telemetry.maxBatchSize": {
+          "type": "number",
+          "default": 200,
+          "minimum": 10,
+          "maximum": 5000,
+          "description": "Maximum queued telemetry events before immediate flush."
+        }
+      }
+    },
     "commands": [
       {
         "command": "lora-jit.pingDaemon",

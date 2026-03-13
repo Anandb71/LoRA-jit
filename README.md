@@ -44,4 +44,10 @@ Prove that structural routing can beat text/embedding baselines in adapter predi
 - `docs/` — architecture and benchmark specs.
 - `tests/` — initial unit tests for contracts and simulator behavior.
 
+## Live telemetry defaults
+
+- Enabled by default via `loraJit.telemetry.enabled`.
+- Debounced flush tick: `loraJit.telemetry.tickMs = 75`.
+- Max in-memory extension batch size before flush: `loraJit.telemetry.maxBatchSize = 200`.
+
 This is intentionally an MVP skeleton; each subsystem exposes clear interfaces for iterative implementation.

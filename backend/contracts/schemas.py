@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 from typing import Any
 
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 class HealthResponse(BaseModel):
     service: str = "lora-jit-daemon"
     status: str = "ok"
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class TelemetryEvent(BaseModel):
@@ -21,6 +21,36 @@ class TelemetryEvent(BaseModel):
     cursor_column: int = Field(ge=0)
     symbols_in_scope: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TextChangeDelta(BaseModel):
+    range_start_line: int = Field(ge=0)
+    range_start_character: int = Field(ge=0)
+    range_end_line: int = Field(ge=0)
+    range_end_character: int = Field(ge=0)
+    text: str
+
+
+class TelemetryStreamEvent(BaseModel):
+    session_id: str
+    event_type: Literal["cursor", "text_change", "document_open", "document_save"]
+    file_path: str
+    language_id: str
+    document_version: int | None = None
+    cursor_line: int | None = Field(default=None, ge=0)
+    cursor_column: int | None = Field(default=None, ge=0)
+    deltas: list[TextChangeDelta] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class TelemetryBatchRequest(BaseModel):
+    events: list[TelemetryStreamEvent] = Field(default_factory=list)
+
+
+class TelemetryBatchResponse(BaseModel):
+    accepted: int
+    buffered_total: int
 
 
 class RoutingDecision(BaseModel):
