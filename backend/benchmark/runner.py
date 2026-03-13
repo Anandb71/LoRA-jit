@@ -3,40 +3,70 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import Literal
 
-from backend.contracts.schemas import BenchmarkResult, TelemetryEvent
+from backend.contracts.schemas import BenchmarkComparisonResult, BenchmarkResult, TelemetryEvent
 from backend.paging.simulator import PagingSimulator
+from backend.routing.baselines import EmbeddingRouter, TextRouter
 from backend.routing.structural import StructuralRouter
+
+
+PredictorName = Literal["structural", "text", "embedding"]
 
 
 class BenchmarkRunner:
     def __init__(self) -> None:
-        self.router = StructuralRouter()
-        self.paging = PagingSimulator(max_hot_adapters=3)
+        self._fallback_adapter = "general"
 
-    def run_trace(self, trace_path: str, predictor: str = "structural") -> BenchmarkResult:
-        if predictor != "structural":
-            raise ValueError("Only 'structural' predictor is implemented in MVP skeleton")
-
+    def _load_rows(self, trace_path: str) -> list[dict]:
         rows = json.loads(Path(trace_path).read_text(encoding="utf-8"))
+        if not isinstance(rows, list):
+            raise ValueError("Trace file must be a JSON array")
+        return rows
+
+    def _build_catalog(self, rows: list[dict]) -> list[str]:
+        adapters = {
+            str(row.get("expected_adapter", self._fallback_adapter)).strip()
+            for row in rows
+            if str(row.get("expected_adapter", self._fallback_adapter)).strip()
+        }
+        if self._fallback_adapter not in adapters:
+            adapters.add(self._fallback_adapter)
+        return sorted(adapters)
+
+    def _build_router(self, predictor: PredictorName, adapter_catalog: list[str]):
+        if predictor == "structural":
+            return StructuralRouter(fallback_adapter=self._fallback_adapter)
+        if predictor == "text":
+            return TextRouter(adapter_catalog=adapter_catalog, fallback_adapter=self._fallback_adapter)
+        if predictor == "embedding":
+            return EmbeddingRouter(adapter_catalog=adapter_catalog, fallback_adapter=self._fallback_adapter)
+        raise ValueError(f"Unsupported predictor: {predictor}")
+
+    def run_trace(self, trace_path: str, predictor: PredictorName = "structural") -> BenchmarkResult:
+        rows = self._load_rows(trace_path)
+        adapter_catalog = self._build_catalog(rows)
+        router = self._build_router(predictor, adapter_catalog=adapter_catalog)
+        paging = PagingSimulator(max_hot_adapters=3)
+
         total = 0
         correct = 0
         elapsed_ms_total = 0.0
 
         for row in rows:
             event = TelemetryEvent.model_validate(row["event"])
-            expected_adapter = row.get("expected_adapter", "general")
+            expected_adapter = str(row.get("expected_adapter", self._fallback_adapter))
 
             started = time.perf_counter()
-            decision = self.router.predict(event)
+            decision = router.predict(event)
             elapsed_ms_total += (time.perf_counter() - started) * 1000
 
-            self.paging.touch(decision.adapter_id)
+            paging.touch(decision.adapter_id)
             total += 1
             if decision.adapter_id == expected_adapter:
                 correct += 1
 
-        miss_rate = self.paging.stats.cold_misses / total if total else 0.0
+        miss_rate = paging.stats.cold_misses / total if total else 0.0
         avg_ms = elapsed_ms_total / total if total else 0.0
 
         return BenchmarkResult(
@@ -45,4 +75,19 @@ class BenchmarkRunner:
             top1_accuracy=(correct / total) if total else 0.0,
             cache_miss_rate=miss_rate,
             avg_prediction_ms=avg_ms,
+        )
+
+    def compare_predictors(
+        self,
+        trace_path: str,
+        predictors: list[PredictorName] | None = None,
+    ) -> BenchmarkComparisonResult:
+        predictors = predictors or ["structural", "text", "embedding"]
+        results = [self.run_trace(trace_path=trace_path, predictor=p) for p in predictors]
+        winner = max(results, key=lambda r: (r.top1_accuracy, -r.cache_miss_rate)).predictor
+
+        return BenchmarkComparisonResult(
+            trace_path=trace_path,
+            results=results,
+            winner_by_accuracy=winner,
         )

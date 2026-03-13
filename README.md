@@ -21,6 +21,7 @@ Prove that structural routing can beat text/embedding baselines in adapter predi
 1. Create a Python 3.11+ environment.
 2. Install dependencies from `pyproject.toml`.
 3. Run the daemon entrypoint at `scripts/run-daemon.py`.
+4. Run benchmark replay on a sample trace: `scripts/run-benchmark.py examples/sample-trace.json --compare`.
 
 ## Development standards
 

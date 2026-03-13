@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -32,12 +33,25 @@ class RoutingDecision(BaseModel):
 
 class BenchmarkRequest(BaseModel):
     trace_path: str
-    predictor: str = "structural"
+    predictor: Literal["structural", "text", "embedding"] = "structural"
 
 
 class BenchmarkResult(BaseModel):
-    predictor: str
+    predictor: Literal["structural", "text", "embedding"]
     events_processed: int
     top1_accuracy: float
     cache_miss_rate: float
     avg_prediction_ms: float
+
+
+class BenchmarkComparisonRequest(BaseModel):
+    trace_path: str
+    predictors: list[Literal["structural", "text", "embedding"]] = Field(
+        default_factory=lambda: ["structural", "text", "embedding"]
+    )
+
+
+class BenchmarkComparisonResult(BaseModel):
+    trace_path: str
+    results: list[BenchmarkResult]
+    winner_by_accuracy: str

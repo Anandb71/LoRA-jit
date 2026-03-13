@@ -7,7 +7,10 @@
       "cursor_line": 42,
       "cursor_column": 8,
       "symbols_in_scope": ["PaymentService", "validate_card"],
-      "metadata": {"workspace": "demo"}
+      "metadata": {
+        "workspace": "demo",
+        "query": "help me fix payment service validation bug"
+      }
     },
     "expected_adapter": "paymentservice"
   },
@@ -19,7 +22,10 @@
       "cursor_line": 58,
       "cursor_column": 2,
       "symbols_in_scope": ["PaymentService", "charge"],
-      "metadata": {"workspace": "demo"}
+      "metadata": {
+        "workspace": "demo",
+        "query": "optimize paymentservice charge flow"
+      }
     },
     "expected_adapter": "paymentservice"
   }
