@@ -25,14 +25,44 @@ class BenchmarkRunner:
         return rows
 
     def _build_catalog(self, rows: list[dict]) -> list[str]:
-        adapters = {
-            str(row.get("expected_adapter", self._fallback_adapter)).strip()
-            for row in rows
-            if str(row.get("expected_adapter", self._fallback_adapter)).strip()
-        }
+        adapters: set[str] = set()
+        for row in rows:
+            expected = str(row.get("expected_adapter", self._fallback_adapter)).strip()
+            if expected:
+                adapters.add(expected)
+
+            label = row.get("expected_label")
+            if isinstance(label, dict):
+                primary = str(label.get("primary_adapter", "")).strip()
+                if primary:
+                    adapters.add(primary)
+                alternatives = label.get("acceptable_alternatives", [])
+                if isinstance(alternatives, list):
+                    adapters.update(str(item).strip() for item in alternatives if str(item).strip())
+
         if self._fallback_adapter not in adapters:
             adapters.add(self._fallback_adapter)
         return sorted(adapters)
+
+    def _score_prediction(self, row: dict, predicted_adapter: str) -> float:
+        label = row.get("expected_label")
+        if isinstance(label, dict):
+            primary = str(label.get("primary_adapter", self._fallback_adapter))
+            alternatives = label.get("acceptable_alternatives", [])
+            alternatives_set = {
+                str(item)
+                for item in alternatives
+                if str(item)
+            } if isinstance(alternatives, list) else set()
+
+            if predicted_adapter == primary:
+                return 1.0
+            if predicted_adapter in alternatives_set:
+                return 0.5
+            return 0.0
+
+        expected_adapter = str(row.get("expected_adapter", self._fallback_adapter))
+        return 1.0 if predicted_adapter == expected_adapter else 0.0
 
     def _build_router(self, predictor: PredictorName, adapter_catalog: list[str]):
         if predictor == "structural":
@@ -50,21 +80,18 @@ class BenchmarkRunner:
         paging = PagingSimulator(max_hot_adapters=3)
 
         total = 0
-        correct = 0
+        score_sum = 0.0
         elapsed_ms_total = 0.0
 
         for row in rows:
             event = TelemetryEvent.model_validate(row["event"])
-            expected_adapter = str(row.get("expected_adapter", self._fallback_adapter))
-
             started = time.perf_counter()
             decision = router.predict(event)
             elapsed_ms_total += (time.perf_counter() - started) * 1000
 
             paging.touch(decision.adapter_id)
             total += 1
-            if decision.adapter_id == expected_adapter:
-                correct += 1
+            score_sum += self._score_prediction(row, predicted_adapter=decision.adapter_id)
 
         miss_rate = paging.stats.cold_misses / total if total else 0.0
         avg_ms = elapsed_ms_total / total if total else 0.0
@@ -72,7 +99,7 @@ class BenchmarkRunner:
         return BenchmarkResult(
             predictor=predictor,
             events_processed=total,
-            top1_accuracy=(correct / total) if total else 0.0,
+            top1_accuracy=(score_sum / total) if total else 0.0,
             cache_miss_rate=miss_rate,
             avg_prediction_ms=avg_ms,
         )

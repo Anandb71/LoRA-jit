@@ -23,6 +23,7 @@ Prove that structural routing can beat text/embedding baselines in adapter predi
 3. Run the daemon entrypoint at `scripts/run-daemon.py`.
 4. Run benchmark replay on a sample trace: `scripts/run-benchmark.py examples/sample-trace.json --compare`.
 5. Compile NDJSON telemetry into benchmark rows: `scripts/compile-trace.py traces/<session>.ndjson --rows-output benchmark.json --windows-output windows.json`.
+6. Auto-label compiled rows with ontology constraints: `scripts/annotate-benchmark.py benchmark.json --output benchmark.annotated.json --print-ontology`.
 
 ## Development standards
 
@@ -44,6 +45,12 @@ Prove that structural routing can beat text/embedding baselines in adapter predi
 - `vscode-extension/` — VS Code integration client.
 - `docs/` — architecture and benchmark specs.
 - `tests/` — initial unit tests for contracts and simulator behavior.
+
+## Ground-truth labeling model
+
+- LoRA-JIT uses an ontology-constrained labeling protocol.
+- Labels include a primary adapter plus acceptable alternatives.
+- Benchmark scoring is weighted for ambiguity-aware evaluation.
 
 ## Live telemetry defaults
 

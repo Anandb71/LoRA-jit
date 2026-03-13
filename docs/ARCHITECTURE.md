@@ -9,6 +9,7 @@
 - **Paging (`backend/paging`)**: adapter residency simulation for cache/miss accounting.
 - **Benchmark (`backend/benchmark`)**: replay runner over recorded traces.
 - **Trace Compiler (`backend/benchmark`)**: state reconstructor + semantic windowing from NDJSON logs.
+- **Labeling (`backend/labeling`)**: adapter ontology + structured offline annotation pipeline.
 - **Telemetry Buffer (`backend/telemetry`)**: in-memory rolling buffer for streamed editor events.
 - **Sequence Tracker (`backend/telemetry`)**: per-session/per-file monotonic sequence continuity checks.
 - **Trace Recorder (`backend/telemetry`)**: append-only NDJSON session logs for replay.
@@ -44,6 +45,17 @@
 2. Segment timeline into semantic windows whenever file/symbol context changes.
 3. Emit benchmark rows with `label_status = pending_offline_annotation` and embedded code block context.
 4. (Next phase) offline auto-labeler assigns high-quality `expected_adapter` ground truth.
+
+## Auto-labeler architecture (Phase 2)
+
+- Ontology defines the only valid adapter IDs.
+- Label provider must emit structured output with:
+	- `primary_adapter`
+	- `acceptable_alternatives`
+	- `confidence`
+	- `reasoning`
+- Parser validates output against ontology before benchmark ingestion.
+- Benchmark runner applies weighted scoring (1.0 primary, 0.5 acceptable alternative).
 
 ## Why this shape
 
