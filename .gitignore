@@ -16,3 +16,5 @@ dist/
 .DS_Store
 Thumbs.db
 traces/
+demo/*.mp4
+demo/record-scene.html

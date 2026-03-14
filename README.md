@@ -13,9 +13,9 @@ Quick links: [5-minute demo](#5-minute-demo-) · [Benchmark workflow](#full-benc
 
 ## Demo Preview 🎬
 
-![LoRA-JIT demo teaser](./docs/assets/demo-teaser.svg)
+![LoRA-JIT live demo](./demo/lora-jit-demo.gif)
 
-Public demo clip will be embedded here. The current teaser shows the exact telemetry flow: route decision, paging state, runtime backend, and end-to-end JIT timing.
+The demo shows the full live telemetry loop inside VS Code: route decision, paging state, active runtime backend, and end-to-end JIT timing.
 
 ## Why this project exists
 
