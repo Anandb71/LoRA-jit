@@ -14,7 +14,7 @@ The core design principle is separation of concerns: telemetry, routing, benchma
 
 - **Daemon (`backend/daemon`)** — FastAPI surface for health, telemetry ingest, live JIT route requests, and benchmark APIs.
 - **Contracts (`backend/contracts`)** — Pydantic schemas shared across daemon, tests, and the extension.
-- **Routing (`backend/routing`)** — baseline predictors plus `JitRouter`, the closed-loop orchestrator.
+- **Routing (`backend/routing`)** — baseline predictors, a trainable learned router, and `JitRouter`, the closed-loop orchestrator.
 - **Runtime (`backend/runtime`)** — adapter activation abstraction; currently backed by `MockRuntime`.
 - **Paging (`backend/paging`)** — hot-set simulation and cache statistics via `PagingSimulator`.
 - **Benchmark (`backend/benchmark`)** — trace replay runner and comparison logic.
@@ -48,7 +48,7 @@ The core design principle is separation of concerns: telemetry, routing, benchma
 
 1. The extension sends a `TelemetryStreamEvent` to `POST /jit/route`.
 2. `JitRouter` bridges it into the leaner `TelemetryEvent` format used by predictors.
-3. The active predictor selects an adapter.
+3. The active predictor selects an adapter. The daemon can load either a baseline or a trained learned model artifact via `.env`.
 4. `PagingSimulator` updates the hot-set and marks the route as a `warm_hit` or `cold_miss`.
 5. `RuntimeBackend.activate_adapter()` is invoked.
 6. The daemon returns a `JitRoutingDecision` containing:
@@ -107,12 +107,13 @@ This is important because it turns LoRA-JIT from an invisible backend into an ob
 - Trace persistence and replay
 - Ontology-constrained labeling
 - Live JIT route responses and IDE visualization
+- Offline training and live loading of a learned router artifact
 
 ### Simulated today
 
 - Adapter residency and eviction policy
 - Runtime activation side effects in the default `MockRuntime` path
-- Learned routing intelligence in the live path
+- Production-grade routing quality beyond the shipped seed-trained model
 
 That boundary is deliberate: the system is built so runtime realism can be upgraded without changing the telemetry or benchmark contracts.
 
@@ -122,6 +123,14 @@ The runtime abstraction now supports two tiers:
 
 - **`MockRuntime`** — default backend for tests, CI, and lightweight local development
 - **`PyTorchPeftRuntime`** — opt-in local backend that lazy-loads a base model and hot-swaps PEFT adapters from disk
+
+Important practical note: the repository does **not** ship real PEFT adapter folders under `adapters/`, so the PyTorch path remains opt-in and user-supplied.
+
+The repository now includes scripts to close that gap locally:
+
+- `scripts/build-sql-dataset.py` — generates a curated SQL/Postgres SFT dataset
+- `scripts/train-peft-adapter.py` — fine-tunes and exports LoRA adapter weights into `adapters/<adapter_id>/`
+- `scripts/verify-adapter.py` — validates adapter artifact completeness before runtime use
 
 Why start with raw PyTorch/PEFT instead of vLLM?
 

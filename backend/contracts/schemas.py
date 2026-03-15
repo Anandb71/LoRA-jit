@@ -68,11 +68,12 @@ class RoutingDecision(BaseModel):
 
 class BenchmarkRequest(BaseModel):
     trace_path: str
-    predictor: Literal["structural", "text", "embedding"] = "structural"
+    predictor: Literal["structural", "text", "embedding", "learned"] = "structural"
+    model_path: str | None = None
 
 
 class BenchmarkResult(BaseModel):
-    predictor: Literal["structural", "text", "embedding"]
+    predictor: Literal["structural", "text", "embedding", "learned"]
     events_processed: int
     top1_accuracy: float
     cache_miss_rate: float
@@ -81,9 +82,10 @@ class BenchmarkResult(BaseModel):
 
 class BenchmarkComparisonRequest(BaseModel):
     trace_path: str
-    predictors: list[Literal["structural", "text", "embedding"]] = Field(
+    predictors: list[Literal["structural", "text", "embedding", "learned"]] = Field(
         default_factory=lambda: ["structural", "text", "embedding"]
     )
+    model_path: str | None = None
 
 
 class BenchmarkComparisonResult(BaseModel):

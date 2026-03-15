@@ -21,6 +21,7 @@ Each benchmark run reports:
 - `structural` — deterministic structural token heuristic
 - `text` — lexical overlap over file path, language, symbols, and `metadata.query`/`metadata.prompt`
 - `embedding` — deterministic pseudo-embedding cosine baseline
+- `learned` — trainable multinomial Naive Bayes over event context tokens, loaded from a JSON artifact
 
 These are intentionally transparent baselines. The benchmark harness is designed to survive future predictor upgrades.
 
@@ -49,6 +50,13 @@ python scripts/run-benchmark.py examples/sample-trace.json --compare
 
 ```powershell
 python scripts/run-benchmark.py examples/sample-trace.json --predictor structural
+```
+
+### Train and run the learned predictor
+
+```powershell
+python scripts/train-router.py examples/router-train.seed.json --output examples/router-model.seed.json
+python scripts/run-benchmark.py examples/router-train.seed.json --predictor learned --model-path examples/router-model.seed.json
 ```
 
 ## Real workflow: trace → rows → labels → benchmark
@@ -122,6 +130,7 @@ That result tells you the benchmark harness is working. It does **not** tell you
 - Paging is simulated rather than tied to actual GPU residency.
 - The default auto-labeler is heuristic; `LlmLabelProvider` is intended for offline teacher-style labeling, not the hot path.
 - The bundled example dataset is too small to support strong routing claims.
+- The shipped learned model is a seed-trained artifact for local validation, not a production-quality policy.
 
 ## What a serious next benchmark looks like
 
@@ -134,3 +143,13 @@ To make the benchmark genuinely persuasive, the next dataset should include:
 - enough semantic diversity to separate structural from text/embedding approaches
 
 When that exists, LoRA-JIT will be able to make stronger claims than “the demo works.” It will be able to make performance claims with evidence.
+
+## Bridge to real runtime adapters
+
+Once you have benchmark rows and labels, you can also create a real adapter artifact for runtime testing:
+
+1. `python scripts/build-sql-dataset.py --size 800 --output data/sql_postgres/train.jsonl`
+2. `python scripts/train-peft-adapter.py --adapter-id sql_postgres --dataset data/sql_postgres/train.jsonl`
+3. `python scripts/verify-adapter.py adapters/sql_postgres`
+
+This produces the exact files that `PyTorchPeftRuntime` loads (`adapter_config.json` + `adapter_model.safetensors`) and allows measuring real activation latency in `/jit/route` responses.

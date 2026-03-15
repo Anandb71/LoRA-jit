@@ -32,6 +32,7 @@ Today the project includes:
 - A **trace compiler** that reconstructs file state from NDJSON event logs.
 - An **ontology-constrained labeling pipeline** for scientifically defensible benchmark data.
 - A **closed-loop JIT router** that returns `warm_hit` / `cold_miss` plus hot-set snapshots and latency.
+- A **trainable learned router** that can be fit offline from labeled benchmark rows and loaded live by the daemon.
 
 ## Current state
 
@@ -42,14 +43,15 @@ What is real right now:
 - Benchmark compile → annotate → compare workflow
 - Live `POST /jit/route` orchestration
 - VS Code status bar + output channel visualization
+- Offline training + live loading of a lightweight learned router artifact
 
 What is still simulated:
 
 - Adapter residency is tracked by `PagingSimulator`
-- Runtime activation uses `MockRuntime` by default, with an opt-in `PyTorchPeftRuntime` scaffold for local PEFT-backed hot-swapping
-- The live router still uses a deterministic baseline predictor, not a trained model
+- Runtime activation uses `MockRuntime` by default, with an opt-in `PyTorchPeftRuntime` scaffold for local PEFT-backed hot-swapping once real adapter folders are present under `adapters/`
+- The shipped learned router is a **seed-trained local model**, not a claim of production-grade routing quality
 
-That means the **systems architecture is real and testable today**, while the runtime backend and routing intelligence are the next realism upgrades.
+That means the **systems architecture is real and testable today**, while the remaining realism gap is mostly about better datasets and real adapter artifacts.
 
 ## What success looks like
 
@@ -173,6 +175,33 @@ python scripts/annotate-benchmark.py benchmark.rows.json --output benchmark.anno
 python scripts/run-benchmark.py benchmark.annotated.json --compare
 ```
 
+## Train the learned router 🧠
+
+LoRA-JIT now ships with a lightweight trainable router based on multinomial Naive Bayes over file, symbol, prompt, and code-block tokens.
+
+### Train from labeled benchmark rows
+
+```powershell
+python scripts/train-router.py benchmark.annotated.json --output models/router.json
+```
+
+### Run the learned predictor explicitly
+
+```powershell
+python scripts/run-benchmark.py benchmark.annotated.json --predictor learned --model-path models/router.json
+```
+
+### Use the trained model live in the daemon
+
+The local `.env` file is now loaded automatically by the daemon launcher. Set:
+
+```dotenv
+LORA_JIT_PREDICTOR=learned
+LORA_JIT_ROUTER_MODEL_PATH=models/router.json
+```
+
+The repository already includes a seed-trained artifact at `examples/router-model.seed.json` plus a matching training corpus at `examples/router-train.seed.json`.
+
 ## Real runtime backend (opt-in)
 
 LoRA-JIT now includes a **`PyTorchPeftRuntime` scaffold** for replacing `MockRuntime` with a local PEFT-backed adapter loader.
@@ -212,6 +241,44 @@ python scripts/run-daemon.py
 
 The daemon will attempt to boot `PyTorchPeftRuntime`. If something is missing, it logs the failure and safely falls back to `MockRuntime`.
 
+## Mint a real `sql_postgres` adapter ⚙️
+
+To physically generate `adapter_model.safetensors` for the runtime hot path:
+
+1. Build the curated SQL dataset (default 800 rows):
+
+```powershell
+python scripts/build-sql-dataset.py --size 800 --output data/sql_postgres/train.jsonl
+```
+
+2. Train and export the LoRA adapter directly into `adapters/sql_postgres/`:
+
+```powershell
+python -m pip install -e .[runtime]
+python scripts/train-peft-adapter.py --adapter-id sql_postgres --dataset data/sql_postgres/train.jsonl --base-model-id Qwen/Qwen1.5-0.5B
+```
+
+3. Verify the artifact directory is complete:
+
+```powershell
+python scripts/verify-adapter.py adapters/sql_postgres
+```
+
+Expected required files:
+
+- `adapters/sql_postgres/adapter_config.json`
+- `adapters/sql_postgres/adapter_model.safetensors`
+
+4. Switch daemon runtime to real PEFT path in `.env`:
+
+```dotenv
+LORA_JIT_RUNTIME_BACKEND=pytorch
+LORA_JIT_BASE_MODEL_ID=Qwen/Qwen1.5-0.5B
+LORA_JIT_ADAPTER_DIR=adapters
+```
+
+Now `/jit/route` activation latency reflects actual adapter load/switch behavior instead of pure mock timing.
+
 ## Current measured accuracy
 
 On the bundled sample benchmark (`examples/sample-trace.json`), the current predictors measure:
@@ -220,9 +287,9 @@ On the bundled sample benchmark (`examples/sample-trace.json`), the current pred
 - `text` → `top1_accuracy = 1.0`
 - `embedding` → `top1_accuracy = 1.0`
 
-Important caveat: this sample has only **2 easy events**, so it is a smoke test, not a production-quality routing claim.
+Important caveat: the bundled `examples/sample-trace.json` is still only a tiny smoke test, and the shipped learned model is trained on the seed corpus in `examples/router-train.seed.json`. Both are useful for validation, not for serious scientific claims.
 
-The benchmark pipeline is mature enough to trust; the bundled dataset is not yet large enough to brag with a straight face.
+The benchmark pipeline and learned-router training loop are mature enough to trust; the bundled datasets are not yet large enough to brag with a straight face.
 
 ## Labeling model and ontology
 
@@ -275,4 +342,4 @@ LoRA-JIT already proves something meaningful:
 
 **editor intent can drive a measurable JIT adapter paging loop, and that loop can be benchmarked, visualized, and debugged with real tooling.**
 
-The next frontier is not more scaffolding. It is better data, a smarter predictor, and a real runtime backend.
+The next frontier is not more scaffolding. It is better data, real adapter artifacts, and harder benchmark coverage.

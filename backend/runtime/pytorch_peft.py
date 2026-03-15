@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from backend.runtime.interface import ActivationResult, AdapterState, RuntimeBackend
+from backend.training.adapter_artifacts import AdapterArtifactError, validate_adapter_directory
 
 
 BaseModelLoader = Callable[[], Any]
@@ -55,7 +56,19 @@ class PyTorchPeftRuntime(RuntimeBackend):
         return "pytorch-peft"
 
     def list_adapters(self) -> list[str]:
-        return sorted(path.name for path in self._adapter_dir.iterdir() if path.is_dir())
+        if self._adapter_loader is not None:
+            return sorted(path.name for path in self._adapter_dir.iterdir() if path.is_dir())
+
+        adapters: list[str] = []
+        for path in self._adapter_dir.iterdir():
+            if not path.is_dir():
+                continue
+            try:
+                validate_adapter_directory(path)
+                adapters.append(path.name)
+            except AdapterArtifactError:
+                continue
+        return sorted(adapters)
 
     def preload_adapter(self, adapter_id: str) -> None:
         if adapter_id not in self.list_adapters():
@@ -88,6 +101,9 @@ class PyTorchPeftRuntime(RuntimeBackend):
     def _load_adapter(self, adapter_id: str) -> None:
         model = self._ensure_base_model_loaded()
         adapter_path = self._adapter_dir / adapter_id
+
+        if self._adapter_loader is None:
+            validate_adapter_directory(adapter_path)
 
         if self._adapter_loader is not None:
             self._adapter_model = self._adapter_loader(model, adapter_path, adapter_id)

@@ -9,6 +9,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from backend.config.env import load_env_file  # noqa: E402
+
+load_env_file(PROJECT_ROOT / ".env")
+
 
 def main() -> None:
     from backend.benchmark.runner import BenchmarkRunner
@@ -17,7 +21,7 @@ def main() -> None:
     parser.add_argument("trace", help="Path to JSON trace file")
     parser.add_argument(
         "--predictor",
-        choices=["structural", "text", "embedding"],
+        choices=["structural", "text", "embedding", "learned"],
         default="structural",
         help="Single predictor to run",
     )
@@ -31,14 +35,28 @@ def main() -> None:
         default="",
         help="Optional output file path for JSON results",
     )
+    parser.add_argument(
+        "--model-path",
+        default="",
+        help="Optional learned-router model path (used when predictor=learned)",
+    )
     args = parser.parse_args()
 
     runner = BenchmarkRunner()
     if args.compare:
-        result = runner.compare_predictors(trace_path=args.trace)
+        predictors = ["structural", "text", "embedding", "learned"] if args.model_path else None
+        result = runner.compare_predictors(
+            trace_path=args.trace,
+            predictors=predictors,
+            model_path=args.model_path or None,
+        )
         payload = result.model_dump(mode="json")
     else:
-        result = runner.run_trace(trace_path=args.trace, predictor=args.predictor)
+        result = runner.run_trace(
+            trace_path=args.trace,
+            predictor=args.predictor,
+            model_path=args.model_path or None,
+        )
         payload = result.model_dump(mode="json")
 
     text = json.dumps(payload, indent=2)

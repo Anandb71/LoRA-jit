@@ -1,0 +1,338 @@
+[
+  {
+    "event": {
+      "session_id": "seed-1",
+      "file_path": "src/python_core/slugify.py",
+      "language_id": "python",
+      "cursor_line": 12,
+      "cursor_column": 4,
+      "symbols_in_scope": ["slugify", "normalize_name"],
+      "metadata": {
+        "query": "debug python helper function for string normalization",
+        "code_block": "def slugify(name: str) -> str:\n    return name.lower().replace(' ', '-')"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "python_core",
+      "acceptable_alternatives": ["general"],
+      "confidence": 0.92,
+      "reasoning": "Pure Python helper logic."
+    },
+    "expected_adapter": "python_core"
+  },
+  {
+    "event": {
+      "session_id": "seed-2",
+      "file_path": "scripts/data_cleanup.py",
+      "language_id": "python",
+      "cursor_line": 8,
+      "cursor_column": 2,
+      "symbols_in_scope": ["clean_values", "parse_rows"],
+      "metadata": {
+        "query": "fix python class method typing bug",
+        "code_block": "class Cleaner:\n    def clean_values(self, rows):\n        return [row.strip() for row in rows]"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "python_core",
+      "acceptable_alternatives": ["data_engineering_general"],
+      "confidence": 0.8,
+      "reasoning": "Python-heavy code with mild pipeline context."
+    },
+    "expected_adapter": "python_core"
+  },
+  {
+    "event": {
+      "session_id": "seed-3",
+      "file_path": "backend/api/users.py",
+      "language_id": "python",
+      "cursor_line": 20,
+      "cursor_column": 6,
+      "symbols_in_scope": ["router", "create_user"],
+      "metadata": {
+        "query": "fastapi endpoint validation for create user route",
+        "code_block": "from fastapi import APIRouter\nrouter = APIRouter()\n@router.post('/users')\ndef create_user(payload: dict):\n    return payload"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "fastapi_service",
+      "acceptable_alternatives": ["python_core"],
+      "confidence": 0.95,
+      "reasoning": "FastAPI router and endpoint definitions dominate."
+    },
+    "expected_adapter": "fastapi_service"
+  },
+  {
+    "event": {
+      "session_id": "seed-4",
+      "file_path": "services/auth_endpoint.py",
+      "language_id": "python",
+      "cursor_line": 14,
+      "cursor_column": 3,
+      "symbols_in_scope": ["login", "refresh_token"],
+      "metadata": {
+        "query": "uvicorn service endpoint auth response bug",
+        "code_block": "from fastapi import FastAPI\napp = FastAPI()\n@app.post('/login')\ndef login():\n    return {'ok': True}"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "fastapi_service",
+      "acceptable_alternatives": ["python_core"],
+      "confidence": 0.93,
+      "reasoning": "ASGI endpoint/service context is explicit."
+    },
+    "expected_adapter": "fastapi_service"
+  },
+  {
+    "event": {
+      "session_id": "seed-5",
+      "file_path": "db/reports/monthly_report.sql",
+      "language_id": "sql",
+      "cursor_line": 2,
+      "cursor_column": 10,
+      "symbols_in_scope": ["monthly_report", "user_totals"],
+      "metadata": {
+        "query": "optimize postgres join query with group by",
+        "code_block": "SELECT u.id, COUNT(o.id) FROM users u JOIN orders o ON o.user_id = u.id GROUP BY u.id;"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "sql_postgres",
+      "acceptable_alternatives": ["data_engineering_general"],
+      "confidence": 0.96,
+      "reasoning": "Clear SQL/PostgreSQL query workload."
+    },
+    "expected_adapter": "sql_postgres"
+  },
+  {
+    "event": {
+      "session_id": "seed-6",
+      "file_path": "migrations/add_index.sql",
+      "language_id": "sql",
+      "cursor_line": 1,
+      "cursor_column": 1,
+      "symbols_in_scope": ["add_index"],
+      "metadata": {
+        "query": "postgres schema migration index tuning",
+        "code_block": "CREATE INDEX CONCURRENTLY idx_users_email ON users(email);"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "sql_postgres",
+      "acceptable_alternatives": ["general"],
+      "confidence": 0.91,
+      "reasoning": "Migration and PostgreSQL indexing context."
+    },
+    "expected_adapter": "sql_postgres"
+  },
+  {
+    "event": {
+      "session_id": "seed-7",
+      "file_path": "web/src/hooks/useUserProfile.tsx",
+      "language_id": "typescript",
+      "cursor_line": 16,
+      "cursor_column": 5,
+      "symbols_in_scope": ["useUserProfile", "useEffect"],
+      "metadata": {
+        "query": "fix react hook dependency issue in useEffect",
+        "code_block": "const [user, setUser] = useState(null);\nuseEffect(() => {\n  fetchProfile();\n}, [userId]);"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "react_hooks",
+      "acceptable_alternatives": ["typescript_core"],
+      "confidence": 0.95,
+      "reasoning": "React hooks are directly present."
+    },
+    "expected_adapter": "react_hooks"
+  },
+  {
+    "event": {
+      "session_id": "seed-8",
+      "file_path": "frontend/components/useCart.tsx",
+      "language_id": "typescript",
+      "cursor_line": 11,
+      "cursor_column": 3,
+      "symbols_in_scope": ["useCart", "useState"],
+      "metadata": {
+        "query": "usestate hook rerender bug in cart component",
+        "code_block": "export function useCart() {\n  const [items, setItems] = useState([]);\n  return { items, setItems };\n}"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "react_hooks",
+      "acceptable_alternatives": ["typescript_core"],
+      "confidence": 0.94,
+      "reasoning": "Hook-centric TypeScript component logic."
+    },
+    "expected_adapter": "react_hooks"
+  },
+  {
+    "event": {
+      "session_id": "seed-9",
+      "file_path": "src/types/vector.ts",
+      "language_id": "typescript",
+      "cursor_line": 4,
+      "cursor_column": 1,
+      "symbols_in_scope": ["Vector", "Magnitude"],
+      "metadata": {
+        "query": "typescript generic interface and type inference",
+        "code_block": "export interface Vector<T> {\n  x: T;\n  y: T;\n}\nexport type Magnitude = number;"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "typescript_core",
+      "acceptable_alternatives": ["general"],
+      "confidence": 0.92,
+      "reasoning": "General TypeScript typing work."
+    },
+    "expected_adapter": "typescript_core"
+  },
+  {
+    "event": {
+      "session_id": "seed-10",
+      "file_path": "packages/sdk/client.ts",
+      "language_id": "typescript",
+      "cursor_line": 18,
+      "cursor_column": 2,
+      "symbols_in_scope": ["ApiClient", "RequestOptions"],
+      "metadata": {
+        "query": "fix interface type mismatch in ts client",
+        "code_block": "type RequestOptions = { timeoutMs: number };\nclass ApiClient {\n  request<T>(path: string): Promise<T> { throw new Error('todo'); }\n}"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "typescript_core",
+      "acceptable_alternatives": ["react_hooks"],
+      "confidence": 0.86,
+      "reasoning": "Plain TypeScript type and generic work."
+    },
+    "expected_adapter": "typescript_core"
+  },
+  {
+    "event": {
+      "session_id": "seed-11",
+      "file_path": "infra/s3_sync.py",
+      "language_id": "python",
+      "cursor_line": 10,
+      "cursor_column": 8,
+      "symbols_in_scope": ["upload_report", "boto3"],
+      "metadata": {
+        "query": "upload csv to s3 using boto3 client",
+        "code_block": "import boto3\ns3 = boto3.client('s3')\ns3.upload_file('report.csv', 'bucket', 'report.csv')"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "aws_boto3",
+      "acceptable_alternatives": ["python_core"],
+      "confidence": 0.96,
+      "reasoning": "Direct AWS SDK boto3 usage."
+    },
+    "expected_adapter": "aws_boto3"
+  },
+  {
+    "event": {
+      "session_id": "seed-12",
+      "file_path": "infra/lambda_deploy.py",
+      "language_id": "python",
+      "cursor_line": 21,
+      "cursor_column": 4,
+      "symbols_in_scope": ["deploy_lambda", "iam_policy"],
+      "metadata": {
+        "query": "boto3 lambda iam deploy script",
+        "code_block": "import boto3\nlambda_client = boto3.client('lambda')\nrole_arn = 'arn:aws:iam::123:role/app'"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "aws_boto3",
+      "acceptable_alternatives": ["python_core"],
+      "confidence": 0.94,
+      "reasoning": "AWS Lambda and IAM vocabulary is explicit."
+    },
+    "expected_adapter": "aws_boto3"
+  },
+  {
+    "event": {
+      "session_id": "seed-13",
+      "file_path": "pipelines/daily_etl.py",
+      "language_id": "python",
+      "cursor_line": 30,
+      "cursor_column": 2,
+      "symbols_in_scope": ["run_pipeline", "extract_orders"],
+      "metadata": {
+        "query": "etl pipeline batch transform warehouse load failure",
+        "code_block": "def run_pipeline():\n    extract_orders()\n    transform_rows()\n    load_warehouse()"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "data_engineering_general",
+      "acceptable_alternatives": ["python_core"],
+      "confidence": 0.95,
+      "reasoning": "ETL pipeline vocabulary dominates."
+    },
+    "expected_adapter": "data_engineering_general"
+  },
+  {
+    "event": {
+      "session_id": "seed-14",
+      "file_path": "jobs/batch_refresh.py",
+      "language_id": "python",
+      "cursor_line": 14,
+      "cursor_column": 3,
+      "symbols_in_scope": ["batch_refresh", "warehouse_sync"],
+      "metadata": {
+        "query": "spark style batch warehouse sync job",
+        "code_block": "def batch_refresh():\n    pipeline = ['extract', 'transform', 'load']\n    warehouse_sync()"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "data_engineering_general",
+      "acceptable_alternatives": ["python_core"],
+      "confidence": 0.9,
+      "reasoning": "Batch + warehouse data pipeline semantics."
+    },
+    "expected_adapter": "data_engineering_general"
+  },
+  {
+    "event": {
+      "session_id": "seed-15",
+      "file_path": "README.md",
+      "language_id": "markdown",
+      "cursor_line": 3,
+      "cursor_column": 1,
+      "symbols_in_scope": ["overview"],
+      "metadata": {
+        "query": "rewrite general project overview text",
+        "code_block": "# Project Overview\nThis section explains setup and usage."
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "general",
+      "acceptable_alternatives": [],
+      "confidence": 0.88,
+      "reasoning": "No specialized adapter keywords are present."
+    },
+    "expected_adapter": "general"
+  },
+  {
+    "event": {
+      "session_id": "seed-16",
+      "file_path": "notes/todo.txt",
+      "language_id": "text",
+      "cursor_line": 1,
+      "cursor_column": 0,
+      "symbols_in_scope": [],
+      "metadata": {
+        "query": "capture general planning notes",
+        "code_block": "remember to update changelog and polish docs"
+      }
+    },
+    "expected_label": {
+      "primary_adapter": "general",
+      "acceptable_alternatives": [],
+      "confidence": 0.85,
+      "reasoning": "Generic prose rather than domain code."
+    },
+    "expected_adapter": "general"
+  }
+]

@@ -18,3 +18,7 @@ Thumbs.db
 traces/
 demo/*.mp4
 demo/record-scene.html
+adapters/*/
+!adapters/.gitkeep
+data/sql_postgres/train.jsonl
+**/_trainer_tmp/

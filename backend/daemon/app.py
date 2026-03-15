@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 
 from backend.benchmark.runner import BenchmarkRunner
+from backend.config.env import load_env_file
 from backend.contracts.schemas import (
     BenchmarkComparisonRequest,
     BenchmarkComparisonResult,
@@ -19,22 +20,24 @@ from backend.contracts.schemas import (
     TelemetryStreamEvent,
 )
 from backend.paging.simulator import PagingSimulator
+from backend.routing.factory import create_predictor
 from backend.routing.jit_router import JitRouter
-from backend.routing.structural import StructuralRouter
 from backend.runtime.factory import create_runtime_backend
 from backend.telemetry.buffer import TelemetryBuffer
 from backend.telemetry.sequence_tracker import SequenceTracker
 from backend.telemetry.trace_recorder import TraceRecorder
 
+load_env_file(Path(__file__).resolve().parents[2] / ".env")
+
 app = FastAPI(title="LoRA-JIT Daemon", version="0.1.0")
 
 # Legacy bare-prediction router (kept for backward compat)
-router = StructuralRouter()
+router = create_predictor()
 
 # Full JIT inference loop: predict → page → activate
 _jit_paging = PagingSimulator(max_hot_adapters=3)
 _jit_backend = create_runtime_backend()
-jit_router = JitRouter(backend=_jit_backend, paging=_jit_paging, predictor=StructuralRouter())
+jit_router = JitRouter(backend=_jit_backend, paging=_jit_paging, predictor=create_predictor())
 
 benchmark_runner = BenchmarkRunner()
 telemetry_buffer = TelemetryBuffer(capacity=20_000)
@@ -110,7 +113,11 @@ def get_trace_session_path(session_id: str):
 
 @app.post("/benchmark/run", response_model=BenchmarkResult)
 def run_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
-    return benchmark_runner.run_trace(request.trace_path, predictor=request.predictor)
+    return benchmark_runner.run_trace(
+        request.trace_path,
+        predictor=request.predictor,
+        model_path=request.model_path,
+    )
 
 
 @app.post("/benchmark/compare", response_model=BenchmarkComparisonResult)
@@ -118,4 +125,5 @@ def compare_benchmarks(request: BenchmarkComparisonRequest) -> BenchmarkComparis
     return benchmark_runner.compare_predictors(
         trace_path=request.trace_path,
         predictors=request.predictors,
+        model_path=request.model_path,
     )

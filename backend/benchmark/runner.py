@@ -7,11 +7,10 @@ from typing import Literal
 
 from backend.contracts.schemas import BenchmarkComparisonResult, BenchmarkResult, TelemetryEvent
 from backend.paging.simulator import PagingSimulator
-from backend.routing.baselines import EmbeddingRouter, TextRouter
-from backend.routing.structural import StructuralRouter
+from backend.routing.factory import DEFAULT_ROUTER_MODEL_PATH, create_predictor
 
 
-PredictorName = Literal["structural", "text", "embedding"]
+PredictorName = Literal["structural", "text", "embedding", "learned"]
 
 
 class BenchmarkRunner:
@@ -64,19 +63,39 @@ class BenchmarkRunner:
         expected_adapter = str(row.get("expected_adapter", self._fallback_adapter))
         return 1.0 if predicted_adapter == expected_adapter else 0.0
 
-    def _build_router(self, predictor: PredictorName, adapter_catalog: list[str]):
-        if predictor == "structural":
-            return StructuralRouter(fallback_adapter=self._fallback_adapter)
-        if predictor == "text":
-            return TextRouter(adapter_catalog=adapter_catalog, fallback_adapter=self._fallback_adapter)
-        if predictor == "embedding":
-            return EmbeddingRouter(adapter_catalog=adapter_catalog, fallback_adapter=self._fallback_adapter)
-        raise ValueError(f"Unsupported predictor: {predictor}")
+    def _build_router(
+        self,
+        predictor: PredictorName,
+        adapter_catalog: list[str],
+        model_path: str | None = None,
+    ):
+        if predictor == "learned":
+            return create_predictor(
+                predictor_name=predictor,
+                adapter_catalog=adapter_catalog,
+                fallback_adapter=self._fallback_adapter,
+                model_path=model_path or str(DEFAULT_ROUTER_MODEL_PATH),
+            )
 
-    def run_trace(self, trace_path: str, predictor: PredictorName = "structural") -> BenchmarkResult:
+        return create_predictor(
+            predictor_name=predictor,
+            adapter_catalog=adapter_catalog,
+            fallback_adapter=self._fallback_adapter,
+        )
+
+    def run_trace(
+        self,
+        trace_path: str,
+        predictor: PredictorName = "structural",
+        model_path: str | None = None,
+    ) -> BenchmarkResult:
         rows = self._load_rows(trace_path)
         adapter_catalog = self._build_catalog(rows)
-        router = self._build_router(predictor, adapter_catalog=adapter_catalog)
+        router = self._build_router(
+            predictor,
+            adapter_catalog=adapter_catalog,
+            model_path=model_path,
+        )
         paging = PagingSimulator(max_hot_adapters=3)
 
         total = 0
@@ -108,9 +127,13 @@ class BenchmarkRunner:
         self,
         trace_path: str,
         predictors: list[PredictorName] | None = None,
+        model_path: str | None = None,
     ) -> BenchmarkComparisonResult:
         predictors = predictors or ["structural", "text", "embedding"]
-        results = [self.run_trace(trace_path=trace_path, predictor=p) for p in predictors]
+        results = [
+            self.run_trace(trace_path=trace_path, predictor=p, model_path=model_path)
+            for p in predictors
+        ]
         winner = max(results, key=lambda r: (r.top1_accuracy, -r.cache_miss_rate)).predictor
 
         return BenchmarkComparisonResult(
