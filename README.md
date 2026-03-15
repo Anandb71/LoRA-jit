@@ -41,7 +41,7 @@ Benchmarked on an **RTX 3050 6 GB laptop** with `Qwen/Qwen1.5-0.5B` + `sql_postg
 | Subsequent warm routes | **6 – 20 ms** |
 | Token generation (40 tokens, GPU) | ~7 500 ms |
 | Router confidence on SQL files | ~99 % |
-| Test suite | **43 / 43 passing** |
+| Test suite | **48 / 48 passing** |
 
 ---
 
@@ -62,7 +62,7 @@ vscode-extension/ TypeScript VS Code extension
 scripts/          CLI entry points for every workflow
 adapters/         LoRA adapter directories (one per adapter ID, gitignored)
 data/             SFT training datasets (gitignored)
-tests/            43-test regression suite
+tests/            48-test regression suite
 docs/             Architecture, benchmark guide, adapter ontology
 examples/         Sample traces and seed router artifacts
 ```
@@ -85,12 +85,18 @@ pip install -e .[dev]
 pytest tests/ -v
 ```
 
-Expected: **43 passed**. No GPU required — the test suite uses `MockRuntime`.
+Expected: **48 passed**. No GPU required — the test suite uses `MockRuntime`.
 
 ### 3 — Start the daemon
 
 ```powershell
 python scripts/run-daemon.py
+```
+
+Or via installed console script:
+
+```powershell
+lora-jit-daemon
 ```
 
 Daemon starts on `http://127.0.0.1:8765`. Interactive API docs at
@@ -246,6 +252,7 @@ A seed-trained artifact ships at `examples/router-model.seed.json`.
 | `GET` | `/health` | Daemon liveness check |
 | `POST` | `/jit/route` | Route editor intent → adapter selection + paging update |
 | `POST` | `/jit/complete` | Generate tokens from the currently active adapter |
+| `POST` | `/jit/preload` | Preload one or more adapters on demand and warm paging state |
 | `POST` | `/telemetry/stream` | Ingest a batch of editor telemetry events |
 | `GET` | `/telemetry/recent` | Inspect recent buffered events |
 | `GET` | `/trace/sessions` | List all stored session trace IDs |
@@ -267,6 +274,9 @@ Full request/response schemas available at `http://127.0.0.1:8765/docs`.
 | `LORA_JIT_DEVICE` | `cpu` | `cpu`, `cuda`, or `auto` |
 | `LORA_JIT_EAGER_LOAD` | `false` | Load base model at daemon boot |
 | `LORA_JIT_PRELOAD_ADAPTERS` | _(empty)_ | Comma-separated adapter IDs to warm at startup |
+| `LORA_JIT_STRICT_RUNTIME` | `false` | When `true`, generation failures raise HTTP 500 (no silent fallback) |
+| `LORA_JIT_MAX_HOT_ADAPTERS` | `3` | Max adapters in hot-set by count |
+| `LORA_JIT_MAX_HOT_MB` | _(empty)_ | Optional approximate MB budget for paging simulator evictions |
 | `LORA_JIT_PREDICTOR` | `structural` | `structural`, `text`, `embedding`, or `learned` |
 | `LORA_JIT_ROUTER_MODEL_PATH` | _(empty)_ | Path to trained router `.json` artifact |
 | `LORA_JIT_LLM_API_BASE` | _(empty)_ | OpenAI-compatible endpoint for offline labeling |
@@ -279,6 +289,11 @@ Full request/response schemas available at `http://127.0.0.1:8765/docs`.
 ```powershell
 pytest tests/ -v          # full test suite (no GPU needed)
 python -m ruff check .    # Python lint
+
+lora-jit-daemon           # console script daemon launcher
+lora-jit-benchmark ...    # benchmark CLI entry point
+lora-jit-compile ...      # trace compiler CLI entry point
+lora-jit-annotate ...     # benchmark annotation CLI entry point
 
 cd vscode-extension
 npm install

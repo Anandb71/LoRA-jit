@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
+from backend.contracts.schemas import RoutingDecision, TelemetryEvent
 from backend.labeling.ontology import list_adapter_ids
 from backend.routing.baselines import EmbeddingRouter, TextRouter
 from backend.routing.learned import LearnedRouter
@@ -14,6 +15,11 @@ PredictorName = Literal["structural", "text", "embedding", "learned"]
 DEFAULT_ROUTER_MODEL_PATH = Path("examples/router-model.seed.json")
 
 logger = logging.getLogger(__name__)
+
+
+class Predictor(Protocol):
+    def predict(self, event: TelemetryEvent) -> RoutingDecision:
+        ...
 
 
 def routing_config_from_env() -> dict[str, str]:
@@ -29,7 +35,7 @@ def create_predictor(
     adapter_catalog: list[str] | None = None,
     fallback_adapter: str = "general",
     model_path: str | Path | None = None,
-):
+) -> Predictor:
     config = routing_config_from_env()
     name = str(predictor_name or config["predictor"]).strip().lower()
     catalog = adapter_catalog or list_adapter_ids()

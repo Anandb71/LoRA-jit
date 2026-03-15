@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Protocol
 
-from backend.contracts.schemas import JitRoutingDecision, TelemetryEvent, TelemetryStreamEvent
+from backend.contracts.schemas import JitRoutingDecision, RoutingDecision, TelemetryEvent, TelemetryStreamEvent
 from backend.paging.simulator import PagingSimulator
 from backend.runtime.interface import RuntimeBackend
 
@@ -11,7 +11,7 @@ from backend.runtime.interface import RuntimeBackend
 class Predictor(Protocol):
     """Structural duck-type for any router that can predict from a TelemetryEvent."""
 
-    def predict(self, event: TelemetryEvent) -> object:
+    def predict(self, event: TelemetryEvent) -> RoutingDecision:
         ...
 
 
@@ -56,9 +56,7 @@ class JitRouter:
         decision = self._predictor.predict(te)
         latency_prediction_ms = (time.perf_counter() - start) * 1000
 
-        prev_misses = self._paging.stats.cold_misses
-        self._paging.touch(decision.adapter_id)
-        paging_hit = self._paging.stats.cold_misses == prev_misses
+        paging = self._paging.touch(decision.adapter_id)
 
         activation = self._backend.activate_adapter(decision.adapter_id)
         latency_total_ms = latency_prediction_ms + activation.activation_latency_ms
@@ -69,8 +67,10 @@ class JitRouter:
             confidence=decision.confidence,
             candidates=list(decision.candidates),
             reason=decision.reason,
-            paging_status="warm_hit" if paging_hit else "cold_miss",
-            warm_adapters=self._paging.snapshot(),
+            paging_status=paging.paging_status,
+            warm_adapters=paging.warm_adapters,
+            evicted_adapters=paging.evicted_adapters,
+            total_hot_mb=paging.total_hot_mb,
             latency_prediction_ms=latency_prediction_ms,
             activation_latency_ms=activation.activation_latency_ms,
             latency_total_ms=latency_total_ms,

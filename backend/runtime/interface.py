@@ -4,6 +4,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 
+class RuntimeActivationError(RuntimeError):
+    """Raised when runtime activation fails for an adapter."""
+
+
+class RuntimeGenerationError(RuntimeError):
+    """Raised when runtime token generation fails."""
+
+
 @dataclass(slots=True)
 class AdapterState:
     adapter_id: str

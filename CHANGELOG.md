@@ -5,6 +5,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- `POST /jit/preload` endpoint for on-demand adapter warming.
+- Approximate MB-budget paging in `PagingSimulator` via `LORA_JIT_MAX_HOT_MB` and
+  `LORA_JIT_MAX_HOT_ADAPTERS`.
+- `JitRoutingDecision` fields: `evicted_adapters`, `total_hot_mb`.
+- Console entry points in package metadata:
+  - `lora-jit-daemon`
+  - `lora-jit-benchmark`
+  - `lora-jit-compile`
+  - `lora-jit-annotate`
+- Minimal public Python API exports from `backend.__init__`.
+
+### Changed
+- Predictor protocol boundary now enforces `RoutingDecision` return type.
+- Runtime config supports `LORA_JIT_STRICT_RUNTIME`.
+
+### Fixed
+- `PyTorchPeftRuntime.generate()` now handles tokenizer/model load failures inside strict fallback path.
+- Runtime failures are now logged with structured metadata, and strict mode surfaces HTTP 500 from
+  `/jit/complete` instead of silently returning stub text.
+
+---
+
 ## [0.5.0] — 2026-03-16  `a43ed43`
 
 ### Added

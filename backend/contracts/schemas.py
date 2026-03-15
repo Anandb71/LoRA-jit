@@ -107,6 +107,8 @@ class JitRoutingDecision(BaseModel):
     reason: str
     paging_status: Literal["warm_hit", "cold_miss"]
     warm_adapters: list[str] = Field(default_factory=list)
+    evicted_adapters: list[str] = Field(default_factory=list)
+    total_hot_mb: float = Field(default=0.0, ge=0.0)
     latency_prediction_ms: float = Field(ge=0.0)
     activation_latency_ms: float = Field(default=0.0, ge=0.0)
     latency_total_ms: float = Field(default=0.0, ge=0.0)
@@ -127,3 +129,13 @@ class CompletionResponse(BaseModel):
     completion_text: str
     active_adapter_used: str
     generation_latency_ms: float = Field(ge=0.0)
+
+
+class PreloadRequest(BaseModel):
+    adapter_ids: list[str] = Field(default_factory=list)
+
+
+class PreloadResponse(BaseModel):
+    requested: int
+    preloaded: list[str] = Field(default_factory=list)
+    failed: dict[str, str] = Field(default_factory=dict)

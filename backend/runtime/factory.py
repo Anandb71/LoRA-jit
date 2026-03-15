@@ -30,6 +30,7 @@ def create_runtime_backend() -> RuntimeBackend:
             adapter_dir=Path(str(config["adapter_dir"])),
             device=str(config["device"]),
             eager_load=bool(config["eager_load"]),
+            strict_runtime=bool(config.get("strict_runtime", False)),
         )
 
         preload_adapters = [

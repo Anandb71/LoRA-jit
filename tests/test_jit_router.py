@@ -56,6 +56,8 @@ class TestJitRouter:
         assert 0.0 <= decision.confidence <= 1.0
         assert decision.paging_status in ("warm_hit", "cold_miss")
         assert isinstance(decision.warm_adapters, list)
+        assert isinstance(decision.evicted_adapters, list)
+        assert decision.total_hot_mb >= 0.0
         assert decision.latency_prediction_ms >= 0.0
         assert decision.activation_latency_ms >= 0.0
         assert decision.latency_total_ms >= decision.latency_prediction_ms
@@ -137,6 +139,8 @@ class TestJitRouter:
         assert "adapter_id" in body
         assert "paging_status" in body
         assert "warm_adapters" in body
+        assert "evicted_adapters" in body
+        assert "total_hot_mb" in body
         assert "latency_prediction_ms" in body
         assert "activation_latency_ms" in body
         assert "latency_total_ms" in body
@@ -182,6 +186,66 @@ class TestJitRouter:
         assert "completion_text" in body
         assert body["active_adapter_used"]
         assert body["generation_latency_ms"] >= 0.0
+
+    def test_daemon_jit_preload_endpoint(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        monkeypatch.setenv("LORA_JIT_RUNTIME_BACKEND", "mock")
+        monkeypatch.setenv("LORA_JIT_EAGER_LOAD", "false")
+        monkeypatch.setenv("LORA_JIT_PRELOAD_ADAPTERS", "")
+
+        import backend.daemon.app as daemon_app
+
+        daemon_app = importlib.reload(daemon_app)
+        app = daemon_app.app
+
+        client = TestClient(app)
+        resp = client.post("/jit/preload", json={"adapter_ids": ["python_core", "sql_postgres"]})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["requested"] == 2
+        assert sorted(body["preloaded"]) == ["python_core", "sql_postgres"]
+        assert body["failed"] == {}
+
+    def test_daemon_jit_complete_strict_runtime_raises_500(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        monkeypatch.setenv("LORA_JIT_RUNTIME_BACKEND", "mock")
+        monkeypatch.setenv("LORA_JIT_EAGER_LOAD", "false")
+        monkeypatch.setenv("LORA_JIT_PRELOAD_ADAPTERS", "")
+        monkeypatch.setenv("LORA_JIT_STRICT_RUNTIME", "true")
+
+        import backend.daemon.app as daemon_app
+
+        class _ExplodingBackend:
+            backend_name = "pytorch-peft"
+            active_adapter_id = "sql_postgres"
+
+            def list_adapters(self):
+                return ["sql_postgres"]
+
+            def preload_adapter(self, _adapter_id: str):
+                return None
+
+            def activate_adapter(self, _adapter_id: str):
+                return None
+
+            def generate(self, _prompt: str, _max_tokens: int) -> str:
+                raise RuntimeError("kaboom")
+
+        monkeypatch.setattr(daemon_app, "_jit_backend", _ExplodingBackend())
+        app = daemon_app.app
+
+        client = TestClient(app)
+        complete_payload = {
+            "session_id": "d-sess",
+            "file_path": "main.py",
+            "prefix": "def x():\n",
+            "suffix": "",
+            "max_tokens": 16,
+        }
+        resp = client.post("/jit/complete", json=complete_payload)
+        assert resp.status_code == 500
 
 
 # ---------------------------------------------------------------------------

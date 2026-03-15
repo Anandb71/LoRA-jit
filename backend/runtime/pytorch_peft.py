@@ -1,17 +1,26 @@
 from __future__ import annotations
 
 import importlib
+import logging
 import os
 import time
 from pathlib import Path
 from typing import Any, Callable
 
-from backend.runtime.interface import ActivationResult, AdapterState, RuntimeBackend
+from backend.runtime.interface import (
+    ActivationResult,
+    AdapterState,
+    RuntimeActivationError,
+    RuntimeBackend,
+    RuntimeGenerationError,
+)
 from backend.training.adapter_artifacts import AdapterArtifactError, validate_adapter_directory
 
 
 BaseModelLoader = Callable[[], Any]
 AdapterLoader = Callable[[Any, Path, str], Any]
+
+logger = logging.getLogger(__name__)
 
 
 class PyTorchPeftRuntime(RuntimeBackend):
@@ -33,12 +42,14 @@ class PyTorchPeftRuntime(RuntimeBackend):
         eager_load: bool = False,
         base_model_loader: BaseModelLoader | None = None,
         adapter_loader: AdapterLoader | None = None,
+        strict_runtime: bool = False,
     ) -> None:
         self._base_model_id = base_model_id
         self._adapter_dir = Path(adapter_dir)
         self._device = device
         self._base_model_loader = base_model_loader
         self._adapter_loader = adapter_loader
+        self._strict_runtime = bool(strict_runtime)
 
         self._base_model: Any | None = None
         self._tokenizer: Any | None = None
@@ -89,12 +100,25 @@ class PyTorchPeftRuntime(RuntimeBackend):
         loaded_from_disk = adapter_id not in self._loaded_adapters
         started = time.perf_counter()
 
-        if loaded_from_disk:
-            self._load_adapter(adapter_id)
+        try:
+            if loaded_from_disk:
+                self._load_adapter(adapter_id)
 
-        if self._adapter_model is not None and hasattr(self._adapter_model, "set_adapter"):
-            self._adapter_model.set_adapter(adapter_id)
-        self._active_adapter = adapter_id
+            if self._adapter_model is not None and hasattr(self._adapter_model, "set_adapter"):
+                self._adapter_model.set_adapter(adapter_id)
+            self._active_adapter = adapter_id
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "runtime_activate_failed backend=%s adapter_id=%s strict=%s error_type=%s error=%s",
+                self.backend_name,
+                adapter_id,
+                self._strict_runtime,
+                type(exc).__name__,
+                exc,
+            )
+            raise RuntimeActivationError(
+                f"Failed to activate adapter '{adapter_id}': {type(exc).__name__}: {exc}"
+            ) from exc
 
         activation_latency_ms = (time.perf_counter() - started) * 1000
         return ActivationResult(
@@ -105,10 +129,10 @@ class PyTorchPeftRuntime(RuntimeBackend):
 
     def generate(self, prompt: str, max_tokens: int) -> str:
         max_new_tokens = max(1, int(max_tokens))
-        model = self._adapter_model or self._ensure_base_model_loaded()
-        tokenizer = self._ensure_tokenizer_loaded()
 
         try:
+            model = self._adapter_model or self._ensure_base_model_loaded()
+            tokenizer = self._ensure_tokenizer_loaded()
             torch = importlib.import_module("torch")
             model.eval()
 
@@ -134,7 +158,19 @@ class PyTorchPeftRuntime(RuntimeBackend):
             generated_ids = output_ids[0][input_len:]
             text = tokenizer.decode(generated_ids, skip_special_tokens=True)
             return text if text else "\n"
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "runtime_generate_failed backend=%s adapter_id=%s strict=%s error_type=%s error=%s",
+                self.backend_name,
+                self._active_adapter,
+                self._strict_runtime,
+                type(exc).__name__,
+                exc,
+            )
+            if self._strict_runtime:
+                raise RuntimeGenerationError(
+                    f"Generation failed for adapter '{self._active_adapter}': {type(exc).__name__}: {exc}"
+                ) from exc
             return "\n    # generation unavailable"
 
     def _load_adapter(self, adapter_id: str) -> None:
@@ -210,7 +246,7 @@ class PyTorchPeftRuntime(RuntimeBackend):
         return self._adapter_model
 
 
-def runtime_config_from_env() -> dict[str, str | bool]:
+def runtime_config_from_env() -> dict[str, str | bool | list[str]]:
     preload_raw = os.environ.get("LORA_JIT_PRELOAD_ADAPTERS", "")
     preload_adapters = [
         part.strip()
@@ -225,4 +261,5 @@ def runtime_config_from_env() -> dict[str, str | bool]:
         "device": os.environ.get("LORA_JIT_DEVICE", "cpu"),
         "eager_load": os.environ.get("LORA_JIT_EAGER_LOAD", "false").strip().lower() == "true",
         "preload_adapters": preload_adapters,
+        "strict_runtime": os.environ.get("LORA_JIT_STRICT_RUNTIME", "false").strip().lower() == "true",
     }

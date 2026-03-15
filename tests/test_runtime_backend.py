@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.runtime.factory import create_runtime_backend
+from backend.runtime.interface import RuntimeGenerationError
 from backend.runtime.mock_runtime import MockRuntime
 from backend.runtime.pytorch_peft import PyTorchPeftRuntime, runtime_config_from_env
 
@@ -69,9 +70,11 @@ def test_factory_falls_back_to_mock_when_pytorch_runtime_cannot_boot(monkeypatch
 
 def test_runtime_config_parses_preload_adapters(monkeypatch) -> None:
     monkeypatch.setenv("LORA_JIT_PRELOAD_ADAPTERS", "sql_postgres, python_core , ,general")
+    monkeypatch.setenv("LORA_JIT_STRICT_RUNTIME", "true")
 
     cfg = runtime_config_from_env()
     assert cfg["preload_adapters"] == ["sql_postgres", "python_core", "general"]
+    assert cfg["strict_runtime"] is True
 
 
 def test_factory_preloads_configured_adapters(monkeypatch, tmp_path: Path) -> None:
@@ -113,3 +116,39 @@ def test_mock_runtime_tracks_active_adapter_id() -> None:
 
     runtime.activate_adapter("sql_postgres")
     assert runtime.active_adapter_id == "sql_postgres"
+
+
+def test_pytorch_generate_returns_stub_when_not_strict(tmp_path: Path) -> None:
+    (tmp_path / "sql_postgres").mkdir()
+
+    runtime = PyTorchPeftRuntime(
+        base_model_id="tiny-local-model",
+        adapter_dir=tmp_path,
+        base_model_loader=lambda: object(),
+        adapter_loader=lambda _m, _p, _a: object(),
+        strict_runtime=False,
+    )
+    runtime.activate_adapter("sql_postgres")
+
+    text = runtime.generate("SELECT * FROM teams", max_tokens=8)
+    assert "generation unavailable" in text
+
+
+def test_pytorch_generate_raises_when_strict(tmp_path: Path) -> None:
+    (tmp_path / "sql_postgres").mkdir()
+
+    runtime = PyTorchPeftRuntime(
+        base_model_id="tiny-local-model",
+        adapter_dir=tmp_path,
+        base_model_loader=lambda: object(),
+        adapter_loader=lambda _m, _p, _a: object(),
+        strict_runtime=True,
+    )
+    runtime.activate_adapter("sql_postgres")
+
+    try:
+        runtime.generate("SELECT * FROM teams", max_tokens=8)
+    except RuntimeGenerationError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("Expected RuntimeGenerationError in strict mode")

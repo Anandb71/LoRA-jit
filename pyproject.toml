@@ -28,6 +28,12 @@ runtime = [
   "safetensors>=0.4.4",
 ]
 
+[project.scripts]
+lora-jit-daemon = "backend.cli:daemon_main"
+lora-jit-benchmark = "backend.cli:benchmark_main"
+lora-jit-compile = "backend.cli:compile_trace_main"
+lora-jit-annotate = "backend.cli:annotate_main"
+
 [tool.setuptools]
 package-dir = {"" = "."}
 

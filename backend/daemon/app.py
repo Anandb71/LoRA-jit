@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import os
 import time
 from pathlib import Path
 
@@ -17,6 +19,8 @@ from backend.contracts.schemas import (
     CompletionResponse,
     HealthResponse,
     JitRoutingDecision,
+    PreloadRequest,
+    PreloadResponse,
     TelemetryBatchRequest,
     TelemetryBatchResponse,
     TelemetryEvent,
@@ -31,6 +35,45 @@ from backend.telemetry.buffer import TelemetryBuffer
 from backend.telemetry.sequence_tracker import SequenceTracker
 from backend.telemetry.trace_recorder import TraceRecorder
 
+logger = logging.getLogger(__name__)
+
+
+def _estimate_adapter_sizes_mb(adapter_root: Path) -> dict[str, float]:
+    sizes: dict[str, float] = {}
+    if not adapter_root.exists():
+        return sizes
+
+    for sub in adapter_root.iterdir():
+        if not sub.is_dir():
+            continue
+        total_bytes = 0
+        for file_path in sub.rglob("*"):
+            if file_path.is_file():
+                total_bytes += file_path.stat().st_size
+        sizes[sub.name] = max(total_bytes / (1024 * 1024), 1.0)
+    return sizes
+
+
+def _read_int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name, str(default)).strip()
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid int for %s=%r; using default=%s", name, raw, default)
+        return default
+
+
+def _read_float_env(name: str) -> float | None:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("Invalid float for %s=%r; ignoring", name, raw)
+        return None
+
+
 load_env_file(Path(__file__).resolve().parents[2] / ".env")
 
 app = FastAPI(title="LoRA-JIT Daemon", version="0.1.0")
@@ -39,9 +82,17 @@ app = FastAPI(title="LoRA-JIT Daemon", version="0.1.0")
 router = create_predictor()
 
 # Full JIT inference loop: predict → page → activate
-_jit_paging = PagingSimulator(max_hot_adapters=3)
 _jit_backend = create_runtime_backend()
 _runtime_cfg = runtime_config_from_env()
+_paging_max_hot_adapters = _read_int_env("LORA_JIT_MAX_HOT_ADAPTERS", 3)
+_paging_max_hot_mb = _read_float_env("LORA_JIT_MAX_HOT_MB")
+_adapter_sizes_mb = _estimate_adapter_sizes_mb(Path(str(_runtime_cfg.get("adapter_dir", "adapters"))))
+_jit_paging = PagingSimulator(
+    max_hot_adapters=_paging_max_hot_adapters,
+    max_hot_mb=_paging_max_hot_mb,
+    adapter_sizes_mb=_adapter_sizes_mb,
+)
+
 for _adapter_id in list(_runtime_cfg.get("preload_adapters", [])):
     if str(_adapter_id).strip():
         _jit_paging.touch(str(_adapter_id).strip())
@@ -90,13 +141,60 @@ def jit_complete(request: CompletionRequest) -> CompletionResponse:
         prompt = f"{request.prefix}\n\n# Right-context:\n{request.suffix}"
 
     started = time.perf_counter()
-    completion = _jit_backend.generate(prompt=prompt, max_tokens=request.max_tokens)
+    try:
+        completion = _jit_backend.generate(prompt=prompt, max_tokens=request.max_tokens)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception(
+            "jit_complete_failed session_id=%s file_path=%s backend=%s adapter_id=%s strict=%s error_type=%s error=%s",
+            request.session_id,
+            request.file_path,
+            _jit_backend.backend_name,
+            active_adapter,
+            bool(_runtime_cfg.get("strict_runtime", False)),
+            type(exc).__name__,
+            exc,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Runtime generation failed. See daemon logs for details.",
+        ) from exc
+
     generation_latency_ms = (time.perf_counter() - started) * 1000
 
     return CompletionResponse(
         completion_text=completion,
         active_adapter_used=active_adapter,
         generation_latency_ms=generation_latency_ms,
+    )
+
+
+@app.post("/jit/preload", response_model=PreloadResponse)
+def jit_preload(request: PreloadRequest) -> PreloadResponse:
+    preloaded: list[str] = []
+    failed: dict[str, str] = {}
+
+    for adapter_id in request.adapter_ids:
+        candidate = str(adapter_id).strip()
+        if not candidate:
+            continue
+        try:
+            _jit_backend.preload_adapter(candidate)
+            _jit_paging.touch(candidate)
+            preloaded.append(candidate)
+        except Exception as exc:  # noqa: BLE001
+            failed[candidate] = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "jit_preload_failed adapter_id=%s backend=%s error_type=%s error=%s",
+                candidate,
+                _jit_backend.backend_name,
+                type(exc).__name__,
+                exc,
+            )
+
+    return PreloadResponse(
+        requested=len(request.adapter_ids),
+        preloaded=sorted(set(preloaded)),
+        failed=failed,
     )
 
 

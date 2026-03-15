@@ -45,6 +45,7 @@ activation, and benchmarking are isolated so each can evolve or be replaced inde
 | `GET` | `/health` | → `HealthResponse` |
 | `POST` | `/jit/route` | `TelemetryStreamEvent` → `JitRoutingDecision` |
 | `POST` | `/jit/complete` | `CompletionRequest` → `CompletionResponse` |
+| `POST` | `/jit/preload` | `PreloadRequest` → `PreloadResponse` |
 | `POST` | `/telemetry/stream` | `TelemetryBatchRequest` → `TelemetryBatchResponse` |
 | `GET` | `/telemetry/recent` | → `list[TelemetryStreamEvent]` |
 | `GET` | `/trace/sessions` | → `list[str]` |
@@ -108,13 +109,16 @@ NDJSON trace
 
 ## Paging simulator
 
-`PagingSimulator` models adapter VRAM residency with a fixed-capacity LRU hot-set:
+`PagingSimulator` models adapter VRAM residency with LRU semantics over both count and
+optional approximate memory budget:
 
-- `touch(adapter_id)` → `warm_hit` if already resident, `cold_miss` + LRU eviction if not
-- `warm_adapters` snapshot returned with every routing decision
-- capacity configurable (default: 3 simultaneous adapters)
+- `touch(adapter_id)` → `PagingTouchResult` with `paging_status`, `evicted_adapters`,
+  `warm_adapters`, and `total_hot_mb`
+- count capacity configurable via `LORA_JIT_MAX_HOT_ADAPTERS` (default: 3)
+- optional MB budget via `LORA_JIT_MAX_HOT_MB` (evicts LRU until under budget)
 - **Boot-time preloading** via `LORA_JIT_PRELOAD_ADAPTERS` — the daemon calls `touch()` for each
   listed adapter during startup so the first real route events hit the warm path
+- **On-demand preloading** via `POST /jit/preload` for extension-driven warm-up
 
 ---
 
@@ -139,6 +143,12 @@ Boot sequence:
 4. If `LORA_JIT_PRELOAD_ADAPTERS` is set, those adapters are `preload_adapter()`-ed at boot
 5. `activate_adapter(id)` hot-swaps the PEFT delta weights via `PeftModel.set_adapter()`
 6. `generate(prompt, max_tokens)` runs `model.generate()` under `torch.no_grad()`
+
+Strict mode:
+
+- `LORA_JIT_STRICT_RUNTIME=true` disables silent fallback completions
+- generation errors raise `RuntimeGenerationError` and are surfaced by daemon as HTTP 500
+- failures are logged with structured context (backend, adapter, exception type)
 
 Graceful fallback: if any step in PyTorchPeftRuntime initialisation fails (missing model,
 missing adapter, CUDA not available), `create_runtime_backend()` catches the exception, logs
