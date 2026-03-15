@@ -1,155 +1,182 @@
 # Benchmark Guide
 
-## Goal
+## Purpose
 
-The benchmark system exists to answer a concrete question:
+The benchmark system answers a concrete measurable question:
 
 > **Does the router choose the right adapter often enough, and does that choice reduce cold misses?**
 
-LoRA-JIT treats routing as a measurable systems problem, not a vibes problem.
+LoRA-JIT treats routing as an engineering problem with numbers, not intuition.
+
+---
 
 ## What gets measured
 
-Each benchmark run reports:
+| Metric | Description |
+|--------|-------------|
+| `top1_accuracy` | Fraction of rows where the predicted adapter is correct (multi-label weighted) |
+| `cache_miss_rate` | Fraction of route decisions that caused a cold miss in `PagingSimulator` |
+| `avg_prediction_ms` | Mean wall-clock route time for the predictor under test |
 
-- **Top-1 accuracy** — exact-match score, or weighted score when multi-label ground truth is present
-- **Cache miss rate** — fraction of route decisions that caused a cold miss in `PagingSimulator`
-- **Average prediction latency (ms)** — wall-clock route time for the predictor under test
+---
 
-## Predictors currently implemented
+## Available predictors
 
-- `structural` — deterministic structural token heuristic
-- `text` — lexical overlap over file path, language, symbols, and `metadata.query`/`metadata.prompt`
-- `embedding` — deterministic pseudo-embedding cosine baseline
-- `learned` — trainable multinomial Naive Bayes over event context tokens, loaded from a JSON artifact
+| Name | Strategy | Trainable |
+|------|----------|-----------|
+| `structural` | Heuristic token matching on file path, language ID, symbol path | No |
+| `text` | Lexical overlap on path, language, symbols, `metadata.query`/`prompt` | No |
+| `embedding` | Deterministic pseudo-embedding cosine similarity | No |
+| `learned` | Multinomial Naive Bayes over tokenised event context | Yes |
 
-These are intentionally transparent baselines. The benchmark harness is designed to survive future predictor upgrades.
+All predictors share the same `predict(event) -> RoutingDecision` interface.
+
+---
 
 ## Input row schema
 
-Each benchmark row contains:
+Each benchmark row must contain:
 
-- `event` — payload compatible with `TelemetryEvent`
-- `expected_adapter` — simple ground truth label, or
-- `expected_label` — structured label with a primary adapter and acceptable alternatives
+```json
+{
+  "event": {
+    "session_id": "...",
+    "file_path": "...",
+    "language_id": "...",
+    "cursor_line": 0,
+    "cursor_column": 0,
+    "symbols_in_scope": [],
+    "metadata": {}
+  },
+  "expected_adapter": "sql_postgres"
+}
+```
 
-Optional metadata fields used by the text/embedding baselines:
+Or the richer multi-label form (produced by the auto-labeler):
 
-- `metadata.query`
-- `metadata.prompt`
+```json
+{
+  "event": { ... },
+  "expected_label": {
+    "primary_adapter": "sql_postgres",
+    "acceptable_alternatives": ["data_engineering_general"],
+    "confidence": 0.92,
+    "reasoning": "File contains parameterised PostgreSQL queries"
+  }
+}
+```
 
-## Fastest way to run the benchmark
+---
 
-### Compare all predictors on the sample trace
+## Quickstart
+
+### Compare all predictors on the bundled sample
 
 ```powershell
 python scripts/run-benchmark.py examples/sample-trace.json --compare
 ```
 
-### Run only one predictor
+### Run a single predictor
 
 ```powershell
 python scripts/run-benchmark.py examples/sample-trace.json --predictor structural
 ```
 
-### Train and run the learned predictor
+### Train and test the learned predictor
 
 ```powershell
-python scripts/train-router.py examples/router-train.seed.json --output examples/router-model.seed.json
-python scripts/run-benchmark.py examples/router-train.seed.json --predictor learned --model-path examples/router-model.seed.json
+# Train
+python scripts/train-router.py examples/router-train.seed.json \
+  --output examples/router-model.seed.json
+
+# Benchmark
+python scripts/run-benchmark.py examples/router-train.seed.json \
+  --predictor learned \
+  --model-path examples/router-model.seed.json
 ```
 
-## Real workflow: trace → rows → labels → benchmark
+---
 
-### 1) Compile an NDJSON session trace
+## Full trace-to-benchmark pipeline
+
+### Step 1 — Compile a session trace
 
 ```powershell
-python scripts/compile-trace.py traces/<session>.ndjson --rows-output benchmark.rows.json --windows-output benchmark.windows.json
+python scripts/compile-trace.py traces/<session>.ndjson \
+  --rows-output benchmark.rows.json \
+  --windows-output benchmark.windows.json
 ```
 
 What this does:
 
-- reconstructs file text from deltas and heartbeats
-- segments the timeline into semantic windows
-- emits unlabeled benchmark rows with embedded code context
+- Reconstructs file text from delta events and heartbeats
+- Segments the session timeline into semantic windows
+- Emits unlabeled benchmark rows with embedded code context snippets
 
-### 2) Annotate the compiled rows
+### Step 2 — Auto-label the rows
 
 ```powershell
-python scripts/annotate-benchmark.py benchmark.rows.json --output benchmark.annotated.json --print-ontology
+python scripts/annotate-benchmark.py benchmark.rows.json \
+  --output benchmark.annotated.json \
+  --print-ontology
 ```
 
 What this does:
 
-- adds `expected_label`
-- validates the label against the adapter ontology
-- copies `primary_adapter` into `expected_adapter` for compatibility
+- Applies heuristic labeling rules based on file path, language, and symbols
+- Validates all labels against `docs/ADAPTER_ONTOLOGY.md`
+- Copies `primary_adapter` → `expected_adapter` for legacy predictor compatibility
+- Optionally calls `LlmLabelProvider` for richer reasoning if `LORA_JIT_LLM_API_BASE` is set
 
-### 3) Benchmark the annotated rows
+### Step 3 — Benchmark
 
 ```powershell
 python scripts/run-benchmark.py benchmark.annotated.json --compare
 ```
 
+---
+
 ## Multi-label scoring
 
-When `expected_label` is present, scoring is weighted:
+When `expected_label` is present:
 
-- predict `primary_adapter` → **1.0**
-- predict one of `acceptable_alternatives` → **0.5**
-- predict anything else → **0.0**
+| Prediction | Score |
+|------------|-------|
+| Matches `primary_adapter` | **1.0** |
+| Matches an `acceptable_alternative` | **0.5** |
+| Anything else | **0.0** |
 
-This is what `top1_accuracy` currently reports for multi-label benchmark rows.
+`top1_accuracy` is the mean of per-row scores. This captures domain ambiguity honestly
+rather than penalising valid alternative predictions as errors.
 
-## Why the ontology matters
+---
 
-Without a fixed ontology, offline label generation can hallucinate adapters that do not exist in the runtime system.
+## Why ontology-constrained labeling matters
 
-LoRA-JIT prevents that by requiring all labels to use adapter IDs from [`docs/ADAPTER_ONTOLOGY.md`](./ADAPTER_ONTOLOGY.md).
+Without a fixed ontology, offline label generation can hallucinate adapter IDs that
+do not exist in the runtime system. That silently corrupts benchmark comparisons.
 
-That gives the benchmark two important properties:
+LoRA-JIT prevents this by requiring all labels to use IDs from
+[`docs/ADAPTER_ONTOLOGY.md`](./ADAPTER_ONTOLOGY.md).
+The label parser rejects any ID outside the ontology before it can enter scoring.
 
-- labels are **machine-checkable**
-- comparisons remain **scientifically defensible**
+This gives the benchmark two important properties:
 
-## How to interpret current results
+1. Labels are **machine-checkable**
+2. Comparisons across runs are **scientifically defensible**
 
-At the time of writing, `examples/sample-trace.json` is a smoke-test benchmark, not a realistic production benchmark.
+---
 
-Why?
+## Interpreting results
 
-- it contains only **2 rows**
-- both are easy examples
-- all three predictors score `1.0`
+The bundled `examples/sample-trace.json` is a **smoke test**, not a production benchmark.
+All three baselines currently score `top1_accuracy = 1.0` on it because it is small and clean.
 
-That result tells you the benchmark harness is working. It does **not** tell you the routing problem is solved.
+Meaningful benchmark results require:
 
-## Current limitations
+- At least several hundred rows
+- Coverage across multiple adapters and language IDs
+- Real session traces from actual development activity
 
-- The embedding baseline is a deterministic proxy, not a true embedding runtime.
-- Paging is simulated rather than tied to actual GPU residency.
-- The default auto-labeler is heuristic; `LlmLabelProvider` is intended for offline teacher-style labeling, not the hot path.
-- The bundled example dataset is too small to support strong routing claims.
-- The shipped learned model is a seed-trained artifact for local validation, not a production-quality policy.
-
-## What a serious next benchmark looks like
-
-To make the benchmark genuinely persuasive, the next dataset should include:
-
-- at least hundreds of windows, not two
-- intentionally ambiguous cases
-- cross-language tasks
-- repeated adapter reuse patterns to stress paging behavior
-- enough semantic diversity to separate structural from text/embedding approaches
-
-When that exists, LoRA-JIT will be able to make stronger claims than “the demo works.” It will be able to make performance claims with evidence.
-
-## Bridge to real runtime adapters
-
-Once you have benchmark rows and labels, you can also create a real adapter artifact for runtime testing:
-
-1. `python scripts/build-sql-dataset.py --size 800 --output data/sql_postgres/train.jsonl`
-2. `python scripts/train-peft-adapter.py --adapter-id sql_postgres --dataset data/sql_postgres/train.jsonl`
-3. `python scripts/verify-adapter.py adapters/sql_postgres`
-
-This produces the exact files that `PyTorchPeftRuntime` loads (`adapter_config.json` + `adapter_model.safetensors`) and allows measuring real activation latency in `/jit/route` responses.
+The benchmark infrastructure is production-ready; the bundled datasets are intentionally
+minimal to keep the repository lightweight.

@@ -1,165 +1,262 @@
 # Architecture
 
-## System overview
+## Overview
 
-LoRA-JIT is organized as three cooperating layers:
+LoRA-JIT is organised as four cooperating layers:
 
-1. **Editor telemetry layer** — the VS Code extension captures coding context and editor activity.
-2. **Control-plane layer** — the daemon ingests telemetry, scores/benchmarks routes, and exposes the live JIT decision API.
-3. **Execution layer** — the paging/runtime abstractions simulate adapter residency and activation today, while leaving room for a real runtime backend later.
+1. **Editor layer** — VS Code extension captures all IDE context and streams it to the daemon.
+2. **Control-plane layer** — FastAPI daemon ingests telemetry, classifies intent, manages the adapter
+   hot-set, and exposes the JIT decision API.
+3. **Runtime layer** — adapter activation abstraction; `MockRuntime` for tests and CI,
+   `PyTorchPeftRuntime` for real GPU inference.
+4. **Benchmark layer** — offline trace replay, labeling pipeline, and predictor comparison harness.
 
-The core design principle is separation of concerns: telemetry, routing, benchmark methodology, and runtime activation are isolated so each can evolve independently.
+The core design principle is **separation of concerns**: telemetry, routing, paging, runtime
+activation, and benchmarking are isolated so each can evolve or be replaced independently.
 
-## Major components
+---
 
-- **Daemon (`backend/daemon`)** — FastAPI surface for health, telemetry ingest, live JIT route requests, and benchmark APIs.
-- **Contracts (`backend/contracts`)** — Pydantic schemas shared across daemon, tests, and the extension.
-- **Routing (`backend/routing`)** — baseline predictors, a trainable learned router, and `JitRouter`, the closed-loop orchestrator.
-- **Runtime (`backend/runtime`)** — adapter activation abstraction; currently backed by `MockRuntime`.
-- **Paging (`backend/paging`)** — hot-set simulation and cache statistics via `PagingSimulator`.
-- **Benchmark (`backend/benchmark`)** — trace replay runner and comparison logic.
-- **Trace Compiler (`backend/benchmark`)** — state reconstruction and semantic window generation from NDJSON logs.
-- **Labeling (`backend/labeling`)** — ontology enforcement, heuristic labeling, and optional LLM-backed labeling.
-- **Telemetry (`backend/telemetry`)** — rolling buffer, gap detection, and append-only trace persistence.
-- **VS Code Extension (`vscode-extension`)** — telemetry producer and live JIT visualization surface.
+## Component map
 
-## API surface
+| Component | Path | Responsibility |
+|-----------|------|----------------|
+| Daemon | `backend/daemon/app.py` | FastAPI app — all HTTP endpoints |
+| Contracts | `backend/contracts/schemas.py` | Pydantic schemas shared across all layers |
+| JitRouter | `backend/routing/jit_router.py` | Closed-loop predict → page → activate orchestrator |
+| Predictors | `backend/routing/` | `structural`, `text`, `embedding`, `learned` baselines |
+| RuntimeBackend | `backend/runtime/interface.py` | Abstract `activate_adapter()` + `generate()` contract |
+| MockRuntime | `backend/runtime/mock_runtime.py` | Deterministic stub for tests and CI |
+| PyTorchPeftRuntime | `backend/runtime/pytorch_peft.py` | Real PEFT hot-swap on GPU |
+| PagingSimulator | `backend/paging/simulator.py` | LRU hot-set tracking and cache statistics |
+| BenchmarkRunner | `backend/benchmark/runner.py` | Trace replay and predictor scoring |
+| TraceCompiler | `backend/benchmark/trace_compiler.py` | State reconstruction from NDJSON event logs |
+| AutoLabeler | `backend/labeling/auto_labeler.py` | Ontology-constrained row labeling |
+| LlmLabelProvider | `backend/labeling/llm_provider.py` | Optional LLM-backed offline labeling |
+| TelemetryBuffer | `backend/telemetry/buffer.py` | Rolling in-memory event buffer |
+| SequenceTracker | `backend/telemetry/sequence_tracker.py` | Per-file gap detection and resync |
+| VS Code Extension | `vscode-extension/src/extension.ts` | Telemetry producer + JIT visualisation |
 
-- `GET /health` — daemon health check.
-- `POST /telemetry/route` — legacy single prediction endpoint without paging/runtime context.
-- `POST /jit/route` — production JIT path; returns `JitRoutingDecision` with paging state and latency.
-- `POST /jit/complete` — completion path; generates text from the currently active runtime adapter.
-- `POST /telemetry/stream` — batched fire-and-forget telemetry ingest.
-- `GET /telemetry/recent` — recent buffered telemetry for validation/debugging.
-- `GET /trace/sessions` — list stored session trace IDs.
-- `GET /trace/session/{session_id}` — resolve the trace file path for a session.
-- `POST /benchmark/run` — benchmark a single predictor.
-- `POST /benchmark/compare` — compare structural, text, and embedding baselines.
+---
 
-## Live request flows
+## HTTP API surface
 
-### Telemetry ingest flow
+| Method | Path | Schema in → out |
+|--------|------|-----------------|
+| `GET` | `/health` | → `HealthResponse` |
+| `POST` | `/jit/route` | `TelemetryStreamEvent` → `JitRoutingDecision` |
+| `POST` | `/jit/complete` | `CompletionRequest` → `CompletionResponse` |
+| `POST` | `/telemetry/stream` | `TelemetryBatchRequest` → `TelemetryBatchResponse` |
+| `GET` | `/telemetry/recent` | → `list[TelemetryStreamEvent]` |
+| `GET` | `/trace/sessions` | → `list[str]` |
+| `GET` | `/trace/session/{id}` | → `{path: str}` |
+| `POST` | `/benchmark/run` | `BenchmarkRequest` → `BenchmarkResult` |
+| `POST` | `/benchmark/compare` | `BenchmarkComparisonRequest` → `BenchmarkComparisonResult` |
 
-1. VS Code records `document_open`, `document_save`, `text_change`, `cursor`, and `heartbeat` events.
-2. Events are buffered locally and flushed on a short debounce interval.
-3. The daemon ingests the batch, records it to an in-memory buffer and an NDJSON trace log, and checks sequence continuity.
-4. If a gap is detected, the daemon requests a file resync via `resync_files` and the extension sends a full-text heartbeat.
+---
 
-### JIT route flow
+## Data flows
 
-1. The extension sends a `TelemetryStreamEvent` to `POST /jit/route`.
-2. `JitRouter` bridges it into the leaner `TelemetryEvent` format used by predictors.
-3. The active predictor selects an adapter. The daemon can load either a baseline or a trained learned model artifact via `.env`.
-4. `PagingSimulator` updates the hot-set and marks the route as a `warm_hit` or `cold_miss`.
-5. `RuntimeBackend.activate_adapter()` is invoked.
-6. The daemon returns a `JitRoutingDecision` containing:
-      - `adapter_id`
-      - `confidence`
-      - `candidates`
-      - `reason`
-      - `paging_status`
-      - `warm_adapters`
-      - `latency_prediction_ms`
+### Telemetry ingest
 
-### Completion flow
+```
+VS Code extension
+  -> debounced TelemetryBatchRequest
+  -> POST /telemetry/stream
+  -> TelemetryBuffer (rolling 20 000-event cap)
+  -> NDJSON trace log (append-only, per session)
+  -> SequenceTracker (gap detection)
+  -> if gap: resync_files field in response triggers full-text heartbeat
+```
 
-1. Extension sends `CompletionRequest` with `prefix` and optional `suffix`.
-2. Daemon validates there is an active runtime adapter from the prior JIT route.
-3. Runtime `generate(prompt, max_tokens)` produces completion text.
-4. Daemon returns `CompletionResponse` with `completion_text`, `active_adapter_used`, and `generation_latency_ms`.
+### JIT route
 
-### Benchmark flow
+```
+VS Code extension (cursor / text_change event)
+  -> POST /jit/route (TelemetryStreamEvent)
+  -> JitRouter.route()
+      -> predictor.predict()  [structural | text | embedding | learned]
+      -> PagingSimulator.touch(adapter_id)          warm_hit or cold_miss
+      -> RuntimeBackend.activate_adapter(adapter_id)
+      -> return JitRoutingDecision
+  -> extension updates status bar + output channel
+```
 
-1. Trace rows are replayed from JSON or compiled from NDJSON session traces.
-2. Optional offline labeling adds `expected_label` with ontology-constrained alternatives.
-3. Predictors are replayed over the same rows.
-4. Accuracy, miss rate, and latency are compared.
+### Completion
 
-## Telemetry design details
+```
+VS Code extension (280 ms debounce after typing stops)
+  -> POST /jit/complete (CompletionRequest)
+  -> daemon: check active_adapter_id is set
+  -> RuntimeBackend.generate(prompt, max_tokens)
+      MockRuntime:         45 ms sleep, returns stub text
+      PyTorchPeftRuntime:  torch.no_grad() + tokenizer + model.generate()
+  -> return CompletionResponse
+  -> extension logs completion text + latency to output channel
+```
 
-- Text edits are sent as **deltas**, not full-document snapshots.
-- Every event includes a per-file monotonic `sequence_id`.
-- Full-text heartbeats provide desync recovery.
-- The extension enforces a hard local queue cap to avoid IDE memory blowouts.
-- Cursor events include semantic scope via `symbol_path` when document symbols are available.
+### Benchmark
 
-## Labeling architecture
+```
+NDJSON trace
+  -> TraceCompiler.compile()    reconstruct file state, emit benchmark rows
+  -> AutoLabeler.annotate()     add expected_label via ontology-constrained rules
+  -> BenchmarkRunner.run()      replay rows, score predictions
+  -> BenchmarkResult            top1_accuracy, cache_miss_rate, avg_prediction_ms
+```
 
-The benchmark pipeline avoids “ground truth delusion” by forcing all labels through a fixed ontology.
+---
 
-- Valid adapter IDs are defined in [`docs/ADAPTER_ONTOLOGY.md`](./ADAPTER_ONTOLOGY.md).
-- Labels use a structured schema with:
-     - `primary_adapter`
-     - `acceptable_alternatives`
-     - `confidence`
-     - `reasoning`
-- The parser validates all model output against the ontology before the data can enter benchmark scoring.
-- `LlmLabelProvider` supports any OpenAI-compatible endpoint via environment variables and falls back to the heuristic provider on failure.
+## Paging simulator
 
-## VS Code visualization path
+`PagingSimulator` models adapter VRAM residency with a fixed-capacity LRU hot-set:
 
-The extension does more than silently ship telemetry now:
+- `touch(adapter_id)` → `warm_hit` if already resident, `cold_miss` + LRU eviction if not
+- `warm_adapters` snapshot returned with every routing decision
+- capacity configurable (default: 3 simultaneous adapters)
+- **Boot-time preloading** via `LORA_JIT_PRELOAD_ADAPTERS` — the daemon calls `touch()` for each
+  listed adapter during startup so the first real route events hit the warm path
 
-- A **status bar item** shows `JIT: <adapter> (warm|cold)`.
-- A **dedicated output channel** logs router, cache, and inference events.
-- The JIT route is debounced independently from telemetry streaming so the editor remains responsive.
+---
 
-This is important because it turns LoRA-JIT from an invisible backend into an observable systems demo.
+## Runtime backends
+
+### MockRuntime (default)
+
+- No ML dependencies required
+- Tracks `_active_adapter` from `activate_adapter()` calls
+- `generate()` sleeps 45 ms and returns a fixed stub string
+- Used by all tests and CI; safe to run on any hardware
+
+### PyTorchPeftRuntime (opt-in)
+
+Activated by `LORA_JIT_RUNTIME_BACKEND=pytorch` in `.env`.
+
+Boot sequence:
+
+1. `runtime_config_from_env()` reads all `LORA_JIT_*` variables
+2. `create_runtime_backend()` instantiates `PyTorchPeftRuntime`
+3. If `LORA_JIT_EAGER_LOAD=true`, base model loaded immediately; otherwise lazy
+4. If `LORA_JIT_PRELOAD_ADAPTERS` is set, those adapters are `preload_adapter()`-ed at boot
+5. `activate_adapter(id)` hot-swaps the PEFT delta weights via `PeftModel.set_adapter()`
+6. `generate(prompt, max_tokens)` runs `model.generate()` under `torch.no_grad()`
+
+Graceful fallback: if any step in PyTorchPeftRuntime initialisation fails (missing model,
+missing adapter, CUDA not available), `create_runtime_backend()` catches the exception, logs
+a warning, and silently returns `MockRuntime`.
+
+### Adapter directory layout
+
+```
+adapters/
+  sql_postgres/
+    adapter_config.json       PEFT adapter config (r, lora_alpha, target_modules …)
+    adapter_model.safetensors LoRA delta weights
+    tokenizer.json            tokenizer vocab
+    tokenizer_config.json     tokenizer settings
+    chat_template.jinja       optional chat template
+```
+
+---
+
+## Telemetry design
+
+- All edits sent as **delta events** (range + text), never full-document snapshots
+- Every event carries a per-file monotonic `sequence_id`
+- Full-text **heartbeat** events provide desync recovery
+- Extension enforces a hard local queue cap to prevent IDE memory pressure
+- Cursor events include semantic scope via `symbol_path` when document symbols are available
+- Trace files are append-only NDJSON, one file per session, stored under `traces/`
+
+---
+
+## Labeling and ontology
+
+All benchmark labels are validated against the fixed adapter ontology in
+`docs/ADAPTER_ONTOLOGY.md`. This prevents hallucinated adapter IDs from corrupting benchmarks.
+
+Label schema:
+
+```json
+{
+  "primary_adapter": "sql_postgres",
+  "acceptable_alternatives": ["data_engineering_general"],
+  "confidence": 0.92,
+  "reasoning": "File contains PostgreSQL DDL and parameterised queries"
+}
+```
+
+Scoring:
+
+- Predict `primary_adapter` → **1.0**
+- Predict an `acceptable_alternative` → **0.5**
+- Predict anything else → **0.0**
+
+`LlmLabelProvider` calls any OpenAI-compatible endpoint for richer reasoning.
+Fallback to heuristic labeling on network error (configurable).
+
+---
+
+## VS Code extension architecture
+
+```
+onDidChangeCursorPosition  -> debounce 150 ms -> POST /jit/route
+onDidChangeTextDocument    -> debounce 280 ms -> POST /jit/complete
+                                              -> POST /telemetry/stream
+```
+
+On each `/jit/route` response:
+- Status bar updated: `JIT: <adapter_id> (warm|cold)`
+- Output channel: `[ROUTER]`, `[PAGING]`, `[INFER]`, `[TIMING]` lines
+
+On each `/jit/complete` response:
+- Output channel: completion text preview + generation latency
+
+Errors are logged to the output channel and never surface as modal popups.
+409 from `/jit/complete` (no active adapter yet) is silently ignored.
+
+---
+
+## Predictor comparison
+
+| Predictor | Strategy | Trainable |
+|-----------|----------|-----------|
+| `structural` | Heuristic token matching on file path, language ID, symbol path | No |
+| `text` | Lexical overlap on file path, language, symbols, query/prompt metadata | No |
+| `embedding` | Deterministic pseudo-embedding cosine similarity | No |
+| `learned` | Multinomial Naive Bayes over tokenised event context | Yes — JSON artifact |
+
+All predictors implement the same `predict(event: TelemetryEvent) -> RoutingDecision` interface
+so they are interchangeable in both the benchmark runner and the live daemon.
+
+---
 
 ## What is real vs simulated
 
 ### Real today
 
-- Live editor telemetry capture
-- Sequence-aware event repair
-- Trace persistence and replay
-- Ontology-constrained labeling
-- Live JIT route responses and IDE visualization
-- Offline training and live loading of a learned router artifact
+- Live editor telemetry capture and sequence-aware repair
+- Trace persistence and offline replay
+- Ontology-constrained benchmark labeling
+- Full JIT route and completion API with measured latency
+- Offline training and live loading of the learned router
+- Real PEFT adapter training, export, and hot-swap (`PyTorchPeftRuntime`)
+- Boot-time adapter preloading with warm first-route latency
 
-### Simulated today
+### Simulated / mocked in default config
 
-- Adapter residency and eviction policy
-- Runtime activation side effects in the default `MockRuntime` path
-- Production-grade routing quality beyond the shipped seed-trained model
+- Adapter VRAM residency is tracked by `PagingSimulator`, not measured from actual GPU memory
+- `MockRuntime` is the default backend; `PyTorchPeftRuntime` is opt-in
 
-That boundary is deliberate: the system is built so runtime realism can be upgraded without changing the telemetry or benchmark contracts.
+The boundary is deliberate: the systems design is fully testable without ML dependencies,
+and the ML path can be switched on without changing any contracts.
 
-## Runtime backend roadmap
+---
 
-The runtime abstraction now supports two tiers:
+## Why this architecture
 
-- **`MockRuntime`** — default backend for tests, CI, and lightweight local development
-- **`PyTorchPeftRuntime`** — opt-in local backend that lazy-loads a base model and hot-swaps PEFT adapters from disk
+LoRA-JIT is designed to answer two measurable questions:
 
-`PyTorchPeftRuntime` now also supports an optional boot-time hot set through `.env`:
-
-- `LORA_JIT_PRELOAD_ADAPTERS=adapter_a,adapter_b,...`
-
-When set, the runtime preloads listed adapters during daemon startup so first route events can hit the warm activation path.
-
-Important practical note: the repository does **not** ship real PEFT adapter folders under `adapters/`, so the PyTorch path remains opt-in and user-supplied.
-
-The repository now includes scripts to close that gap locally:
-
-- `scripts/build-sql-dataset.py` — generates a curated SQL/Postgres SFT dataset
-- `scripts/train-peft-adapter.py` — fine-tunes and exports LoRA adapter weights into `adapters/<adapter_id>/`
-- `scripts/verify-adapter.py` — validates adapter artifact completeness before runtime use
-
-Why start with raw PyTorch/PEFT instead of vLLM?
-
-- no separate inference server is required
-- easier to run on a standard developer laptop
-- direct access to adapter load/switch latency measurements
-- preserves the runtime abstraction so a future `vLLMRuntime` can be added cleanly
-
-This keeps LoRA-JIT honest: the LLM remains an offline teacher, while the hot path stays local and latency-sensitive.
-
-## Why the architecture is shaped this way
-
-LoRA-JIT is meant to answer two separate but related questions:
-
-1. **Can we route adapter choice intelligently?**
+1. **Can we route adapter choice intelligently from editor context?**
 2. **Can we keep the right adapter warm often enough for latency to matter?**
 
-The architecture makes both questions measurable. That is the main value of the project.
+The architecture makes both questions independently measurable and improvable.
