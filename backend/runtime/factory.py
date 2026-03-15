@@ -25,12 +25,31 @@ def create_runtime_backend() -> RuntimeBackend:
         return MockRuntime(adapters=list_adapter_ids())
 
     try:
-        return PyTorchPeftRuntime(
+        runtime = PyTorchPeftRuntime(
             base_model_id=str(config["base_model_id"]),
             adapter_dir=Path(str(config["adapter_dir"])),
             device=str(config["device"]),
             eager_load=bool(config["eager_load"]),
         )
+
+        preload_adapters = [
+            str(item).strip()
+            for item in list(config.get("preload_adapters", []))
+            if str(item).strip()
+        ]
+        for adapter_id in preload_adapters:
+            try:
+                runtime.preload_adapter(adapter_id)
+                logger.info("Preloaded adapter into runtime hot-set: %s", adapter_id)
+            except Exception as preload_exc:  # noqa: BLE001
+                logger.warning(
+                    "Failed to preload adapter '%s': %s: %s",
+                    adapter_id,
+                    type(preload_exc).__name__,
+                    preload_exc,
+                )
+
+        return runtime
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Falling back to MockRuntime because PyTorchPeftRuntime failed to initialize: %s: %s",

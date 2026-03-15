@@ -124,6 +124,12 @@ The runtime abstraction now supports two tiers:
 - **`MockRuntime`** — default backend for tests, CI, and lightweight local development
 - **`PyTorchPeftRuntime`** — opt-in local backend that lazy-loads a base model and hot-swaps PEFT adapters from disk
 
+`PyTorchPeftRuntime` now also supports an optional boot-time hot set through `.env`:
+
+- `LORA_JIT_PRELOAD_ADAPTERS=adapter_a,adapter_b,...`
+
+When set, the runtime preloads listed adapters during daemon startup so first route events can hit the warm activation path.
+
 Important practical note: the repository does **not** ship real PEFT adapter folders under `adapters/`, so the PyTorch path remains opt-in and user-supplied.
 
 The repository now includes scripts to close that gap locally:

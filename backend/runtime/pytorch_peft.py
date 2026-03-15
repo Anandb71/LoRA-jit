@@ -155,10 +155,18 @@ class PyTorchPeftRuntime(RuntimeBackend):
 
 
 def runtime_config_from_env() -> dict[str, str | bool]:
+    preload_raw = os.environ.get("LORA_JIT_PRELOAD_ADAPTERS", "")
+    preload_adapters = [
+        part.strip()
+        for part in preload_raw.split(",")
+        if part.strip()
+    ]
+
     return {
         "backend": os.environ.get("LORA_JIT_RUNTIME_BACKEND", "mock").strip().lower(),
         "base_model_id": os.environ.get("LORA_JIT_BASE_MODEL_ID", "Qwen/Qwen1.5-0.5B"),
         "adapter_dir": os.environ.get("LORA_JIT_ADAPTER_DIR", "adapters"),
         "device": os.environ.get("LORA_JIT_DEVICE", "cpu"),
         "eager_load": os.environ.get("LORA_JIT_EAGER_LOAD", "false").strip().lower() == "true",
+        "preload_adapters": preload_adapters,
     }

@@ -231,6 +231,7 @@ LORA_JIT_BASE_MODEL_ID=Qwen/Qwen1.5-0.5B
 LORA_JIT_ADAPTER_DIR=adapters
 LORA_JIT_DEVICE=cpu
 LORA_JIT_EAGER_LOAD=false
+LORA_JIT_PRELOAD_ADAPTERS=
 ```
 
 4. Start the daemon normally:
@@ -240,6 +241,14 @@ python scripts/run-daemon.py
 ```
 
 The daemon will attempt to boot `PyTorchPeftRuntime`. If something is missing, it logs the failure and safely falls back to `MockRuntime`.
+
+To reduce first-route cold misses, you can optionally preload a boot-time hot set:
+
+```dotenv
+LORA_JIT_PRELOAD_ADAPTERS=sql_postgres,python_core,react_hooks
+```
+
+At daemon startup, each listed adapter is loaded once so initial context switches use the warm activation path instead of paying full disk→CPU→GPU load latency.
 
 ## Mint a real `sql_postgres` adapter ⚙️
 

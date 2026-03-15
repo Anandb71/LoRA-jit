@@ -23,6 +23,7 @@ from backend.paging.simulator import PagingSimulator
 from backend.routing.factory import create_predictor
 from backend.routing.jit_router import JitRouter
 from backend.runtime.factory import create_runtime_backend
+from backend.runtime.pytorch_peft import runtime_config_from_env
 from backend.telemetry.buffer import TelemetryBuffer
 from backend.telemetry.sequence_tracker import SequenceTracker
 from backend.telemetry.trace_recorder import TraceRecorder
@@ -37,6 +38,10 @@ router = create_predictor()
 # Full JIT inference loop: predict → page → activate
 _jit_paging = PagingSimulator(max_hot_adapters=3)
 _jit_backend = create_runtime_backend()
+_runtime_cfg = runtime_config_from_env()
+for _adapter_id in list(_runtime_cfg.get("preload_adapters", [])):
+    if str(_adapter_id).strip():
+        _jit_paging.touch(str(_adapter_id).strip())
 jit_router = JitRouter(backend=_jit_backend, paging=_jit_paging, predictor=create_predictor())
 
 benchmark_runner = BenchmarkRunner()

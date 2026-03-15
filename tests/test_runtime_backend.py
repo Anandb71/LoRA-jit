@@ -4,7 +4,7 @@ from pathlib import Path
 
 from backend.runtime.factory import create_runtime_backend
 from backend.runtime.mock_runtime import MockRuntime
-from backend.runtime.pytorch_peft import PyTorchPeftRuntime
+from backend.runtime.pytorch_peft import PyTorchPeftRuntime, runtime_config_from_env
 
 
 class _FakeAdapterModel:
@@ -65,3 +65,35 @@ def test_factory_falls_back_to_mock_when_pytorch_runtime_cannot_boot(monkeypatch
 
     backend = create_runtime_backend()
     assert isinstance(backend, MockRuntime)
+
+
+def test_runtime_config_parses_preload_adapters(monkeypatch) -> None:
+    monkeypatch.setenv("LORA_JIT_PRELOAD_ADAPTERS", "sql_postgres, python_core , ,general")
+
+    cfg = runtime_config_from_env()
+    assert cfg["preload_adapters"] == ["sql_postgres", "python_core", "general"]
+
+
+def test_factory_preloads_configured_adapters(monkeypatch, tmp_path: Path) -> None:
+    preloaded: list[str] = []
+
+    class _FakeRuntime:
+        backend_name = "pytorch-peft"
+
+        def preload_adapter(self, adapter_id: str) -> None:
+            preloaded.append(adapter_id)
+
+    def _fake_runtime_ctor(**_kwargs):
+        return _FakeRuntime()
+
+    monkeypatch.setattr("backend.runtime.factory.PyTorchPeftRuntime", _fake_runtime_ctor)
+    monkeypatch.setenv("LORA_JIT_RUNTIME_BACKEND", "pytorch")
+    monkeypatch.setenv("LORA_JIT_BASE_MODEL_ID", "tiny-local-model")
+    monkeypatch.setenv("LORA_JIT_ADAPTER_DIR", str(tmp_path))
+    monkeypatch.setenv("LORA_JIT_DEVICE", "cpu")
+    monkeypatch.setenv("LORA_JIT_EAGER_LOAD", "false")
+    monkeypatch.setenv("LORA_JIT_PRELOAD_ADAPTERS", "sql_postgres,python_core")
+
+    backend = create_runtime_backend()
+    assert backend.backend_name == "pytorch-peft"
+    assert preloaded == ["sql_postgres", "python_core"]
