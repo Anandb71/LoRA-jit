@@ -97,3 +97,19 @@ def test_factory_preloads_configured_adapters(monkeypatch, tmp_path: Path) -> No
     backend = create_runtime_backend()
     assert backend.backend_name == "pytorch-peft"
     assert preloaded == ["sql_postgres", "python_core"]
+
+
+def test_mock_runtime_generate_returns_completion() -> None:
+    runtime = MockRuntime(adapters=["general"])
+    runtime.activate_adapter("general")
+
+    text = runtime.generate("def run(team_id):", max_tokens=32)
+    assert "query_db" in text
+
+
+def test_mock_runtime_tracks_active_adapter_id() -> None:
+    runtime = MockRuntime(adapters=["general", "sql_postgres"])
+    assert runtime.active_adapter_id is None
+
+    runtime.activate_adapter("sql_postgres")
+    assert runtime.active_adapter_id == "sql_postgres"

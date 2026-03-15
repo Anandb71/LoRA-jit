@@ -46,6 +46,20 @@ type JitRoutingDecision = {
   sequence_id: number | null;
 };
 
+type CompletionRequest = {
+  session_id: string;
+  file_path: string;
+  prefix: string;
+  suffix?: string;
+  max_tokens: number;
+};
+
+type CompletionResponse = {
+  completion_text: string;
+  active_adapter_used: string;
+  generation_latency_ms: number;
+};
+
 // ---------------------------------------------------------------------------
 // Module state
 // ---------------------------------------------------------------------------
@@ -54,6 +68,7 @@ const sessionId = `vscode-${Date.now()}`;
 let telemetryBuffer: TelemetryStreamEvent[] = [];
 let flushTimer: NodeJS.Timeout | undefined;
 let jitRouteTimer: NodeJS.Timeout | undefined;
+let completeTimer: NodeJS.Timeout | undefined;
 const fileSequence = new Map<string, number>();
 const fileChangeCounter = new Map<string, number>();
 const pendingResyncFiles = new Set<string>();
@@ -185,6 +200,67 @@ async function routeJit(event: TelemetryStreamEvent): Promise<void> {
     statusBar.tooltip = `LoRA-JIT daemon not reachable at ${DAEMON_BASE_URL}`;
     statusBar.backgroundColor = undefined;
   }
+}
+
+function buildCompletionRequest(editor: vscode.TextEditor): CompletionRequest {
+  const document = editor.document;
+  const position = editor.selection.active;
+  const text = document.getText();
+  const cursorOffset = document.offsetAt(position);
+
+  const prefixStart = Math.max(0, cursorOffset - 4000);
+  const suffixEnd = Math.min(text.length, cursorOffset + 1000);
+
+  return {
+    session_id: sessionId,
+    file_path: document.fileName,
+    prefix: text.slice(prefixStart, cursorOffset),
+    suffix: text.slice(cursorOffset, suffixEnd),
+    max_tokens: 64,
+  };
+}
+
+async function requestCompletion(editor: vscode.TextEditor): Promise<void> {
+  const payload = buildCompletionRequest(editor);
+
+  try {
+    const response = await fetch(`${DAEMON_BASE_URL}/jit/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.status === 409) {
+      return;
+    }
+    if (!response.ok) {
+      return;
+    }
+
+    const body = (await response.json()) as CompletionResponse;
+    const ts = formatTimestamp();
+    const preview = body.completion_text.replace(/\s+/g, ' ').trim().slice(0, 100);
+    jitChannel.appendLine(
+      `[${ts}] [COMPLETE] adapter=${body.active_adapter_used} | gen=${body.generation_latency_ms.toFixed(2)}ms | text="${preview}"`
+    );
+  } catch {
+    // Do not interrupt editor flow when completion daemon call fails.
+  }
+}
+
+function scheduleCompletion(document: vscode.TextDocument): void {
+  if (completeTimer) {
+    clearTimeout(completeTimer);
+  }
+
+  completeTimer = setTimeout(() => {
+    completeTimer = undefined;
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.uri.toString() !== document.uri.toString()) {
+      return;
+    }
+    void requestCompletion(editor);
+  }, 280);
 }
 
 /** Debounce JIT route calls — at most one in-flight per 200ms. */
@@ -431,6 +507,8 @@ function wireLiveTelemetry(context: vscode.ExtensionContext): void {
       if (count % Math.max(5, heartbeatEveryNChanges) === 0) {
         enqueueTelemetry(buildHeartbeatEvent(event.document));
       }
+
+      scheduleCompletion(event.document);
     }),
     vscode.window.onDidChangeTextEditorSelection((event) => {
       const active = event.selections[0]?.active;
@@ -488,6 +566,10 @@ export function deactivate(): void {
   if (jitRouteTimer) {
     clearTimeout(jitRouteTimer);
     jitRouteTimer = undefined;
+  }
+  if (completeTimer) {
+    clearTimeout(completeTimer);
+    completeTimer = undefined;
   }
   flushTelemetryNow();
 }

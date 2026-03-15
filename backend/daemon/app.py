@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -12,6 +13,8 @@ from backend.contracts.schemas import (
     BenchmarkComparisonResult,
     BenchmarkRequest,
     BenchmarkResult,
+    CompletionRequest,
+    CompletionResponse,
     HealthResponse,
     JitRoutingDecision,
     TelemetryBatchRequest,
@@ -71,6 +74,30 @@ def jit_route(event: TelemetryStreamEvent) -> JitRoutingDecision:
     pressure to the user.
     """
     return jit_router.route(event)
+
+
+@app.post("/jit/complete", response_model=CompletionResponse)
+def jit_complete(request: CompletionRequest) -> CompletionResponse:
+    active_adapter = _jit_backend.active_adapter_id
+    if not active_adapter:
+        raise HTTPException(
+            status_code=409,
+            detail="No active adapter in runtime. Call /jit/route first to activate one.",
+        )
+
+    prompt = request.prefix
+    if request.suffix:
+        prompt = f"{request.prefix}\n\n# Right-context:\n{request.suffix}"
+
+    started = time.perf_counter()
+    completion = _jit_backend.generate(prompt=prompt, max_tokens=request.max_tokens)
+    generation_latency_ms = (time.perf_counter() - started) * 1000
+
+    return CompletionResponse(
+        completion_text=completion,
+        active_adapter_used=active_adapter,
+        generation_latency_ms=generation_latency_ms,
+    )
 
 
 @app.post("/telemetry/stream", response_model=TelemetryBatchResponse)

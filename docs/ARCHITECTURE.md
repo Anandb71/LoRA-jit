@@ -28,6 +28,7 @@ The core design principle is separation of concerns: telemetry, routing, benchma
 - `GET /health` — daemon health check.
 - `POST /telemetry/route` — legacy single prediction endpoint without paging/runtime context.
 - `POST /jit/route` — production JIT path; returns `JitRoutingDecision` with paging state and latency.
+- `POST /jit/complete` — completion path; generates text from the currently active runtime adapter.
 - `POST /telemetry/stream` — batched fire-and-forget telemetry ingest.
 - `GET /telemetry/recent` — recent buffered telemetry for validation/debugging.
 - `GET /trace/sessions` — list stored session trace IDs.
@@ -59,6 +60,13 @@ The core design principle is separation of concerns: telemetry, routing, benchma
       - `paging_status`
       - `warm_adapters`
       - `latency_prediction_ms`
+
+### Completion flow
+
+1. Extension sends `CompletionRequest` with `prefix` and optional `suffix`.
+2. Daemon validates there is an active runtime adapter from the prior JIT route.
+3. Runtime `generate(prompt, max_tokens)` produces completion text.
+4. Daemon returns `CompletionResponse` with `completion_text`, `active_adapter_used`, and `generation_latency_ms`.
 
 ### Benchmark flow
 

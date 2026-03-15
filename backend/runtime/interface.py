@@ -24,6 +24,11 @@ class RuntimeBackend(ABC):
     def backend_name(self) -> str:
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def active_adapter_id(self) -> str | None:
+        raise NotImplementedError
+
     @abstractmethod
     def list_adapters(self) -> list[str]:
         raise NotImplementedError
@@ -34,4 +39,8 @@ class RuntimeBackend(ABC):
 
     @abstractmethod
     def activate_adapter(self, adapter_id: str) -> ActivationResult:
+        raise NotImplementedError
+
+    @abstractmethod
+    def generate(self, prompt: str, max_tokens: int) -> str:
         raise NotImplementedError

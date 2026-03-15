@@ -113,3 +113,17 @@ class JitRoutingDecision(BaseModel):
     runtime_backend: str = "mock"
     sequence_id: int | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class CompletionRequest(BaseModel):
+    session_id: str
+    file_path: str
+    prefix: str
+    suffix: str = ""
+    max_tokens: int = Field(default=64, ge=1, le=512)
+
+
+class CompletionResponse(BaseModel):
+    completion_text: str
+    active_adapter_used: str
+    generation_latency_ms: float = Field(ge=0.0)

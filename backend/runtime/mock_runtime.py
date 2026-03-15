@@ -14,12 +14,17 @@ class MockRuntime(RuntimeBackend):
     ) -> None:
         self._adapters = adapters or ["general", "python", "typescript"]
         self._warm: set[str] = set()
+        self._active_adapter: str | None = None
         self._cold_load_latency_ms = max(0.0, cold_load_latency_ms)
         self._warm_switch_latency_ms = max(0.0, warm_switch_latency_ms)
 
     @property
     def backend_name(self) -> str:
         return "mock"
+
+    @property
+    def active_adapter_id(self) -> str | None:
+        return self._active_adapter
 
     def list_adapters(self) -> list[str]:
         return list(self._adapters)
@@ -31,6 +36,7 @@ class MockRuntime(RuntimeBackend):
     def activate_adapter(self, adapter_id: str) -> ActivationResult:
         warm_before = adapter_id in self._warm
         self.preload_adapter(adapter_id)
+        self._active_adapter = adapter_id
 
         simulated_ms = self._warm_switch_latency_ms if warm_before else self._cold_load_latency_ms
         started = time.perf_counter()
@@ -43,3 +49,9 @@ class MockRuntime(RuntimeBackend):
             activation_latency_ms=measured_ms,
             loaded_from_disk=not warm_before,
         )
+
+    def generate(self, prompt: str, max_tokens: int) -> str:
+        del prompt
+        del max_tokens
+        time.sleep(0.045)
+        return "\n    return query_db(team_id)"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -108,10 +109,18 @@ class TestJitRouter:
 
         assert len(paging.snapshot()) <= 2
 
-    def test_daemon_jit_route_endpoint(self):
+    def test_daemon_jit_route_endpoint(self, monkeypatch):
         """Integration test: POST /jit/route via FastAPI TestClient."""
         from fastapi.testclient import TestClient
-        from backend.daemon.app import app
+
+        monkeypatch.setenv("LORA_JIT_RUNTIME_BACKEND", "mock")
+        monkeypatch.setenv("LORA_JIT_EAGER_LOAD", "false")
+        monkeypatch.setenv("LORA_JIT_PRELOAD_ADAPTERS", "")
+
+        import backend.daemon.app as daemon_app
+
+        daemon_app = importlib.reload(daemon_app)
+        app = daemon_app.app
 
         client = TestClient(app)
         payload = {
@@ -132,6 +141,47 @@ class TestJitRouter:
         assert "activation_latency_ms" in body
         assert "latency_total_ms" in body
         assert "runtime_backend" in body
+
+    def test_daemon_jit_complete_endpoint(self, monkeypatch):
+        """Integration test: route first, then request completion from active runtime adapter."""
+        from fastapi.testclient import TestClient
+
+        monkeypatch.setenv("LORA_JIT_RUNTIME_BACKEND", "mock")
+        monkeypatch.setenv("LORA_JIT_EAGER_LOAD", "false")
+        monkeypatch.setenv("LORA_JIT_PRELOAD_ADAPTERS", "")
+
+        import backend.daemon.app as daemon_app
+
+        daemon_app = importlib.reload(daemon_app)
+        app = daemon_app.app
+
+        client = TestClient(app)
+
+        route_payload = {
+            "session_id": "d-sess",
+            "event_type": "cursor",
+            "file_path": "main.py",
+            "language_id": "python",
+            "sequence_id": 1,
+            "symbol_path": ["MyRouter"],
+        }
+        route_resp = client.post("/jit/route", json=route_payload)
+        assert route_resp.status_code == 200
+
+        complete_payload = {
+            "session_id": "d-sess",
+            "file_path": "main.py",
+            "prefix": "def fetch_team(team_id):\n",
+            "suffix": "\n    pass",
+            "max_tokens": 32,
+        }
+        complete_resp = client.post("/jit/complete", json=complete_payload)
+        assert complete_resp.status_code == 200
+
+        body = complete_resp.json()
+        assert "completion_text" in body
+        assert body["active_adapter_used"]
+        assert body["generation_latency_ms"] >= 0.0
 
 
 # ---------------------------------------------------------------------------

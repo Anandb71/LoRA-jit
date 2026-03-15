@@ -41,6 +41,7 @@ class PyTorchPeftRuntime(RuntimeBackend):
         self._adapter_loader = adapter_loader
 
         self._base_model: Any | None = None
+        self._tokenizer: Any | None = None
         self._adapter_model: Any | None = None
         self._loaded_adapters: set[str] = set()
         self._active_adapter: str | None = None
@@ -54,6 +55,10 @@ class PyTorchPeftRuntime(RuntimeBackend):
     @property
     def backend_name(self) -> str:
         return "pytorch-peft"
+
+    @property
+    def active_adapter_id(self) -> str | None:
+        return self._active_adapter
 
     def list_adapters(self) -> list[str]:
         if self._adapter_loader is not None:
@@ -98,6 +103,40 @@ class PyTorchPeftRuntime(RuntimeBackend):
             loaded_from_disk=loaded_from_disk,
         )
 
+    def generate(self, prompt: str, max_tokens: int) -> str:
+        max_new_tokens = max(1, int(max_tokens))
+        model = self._adapter_model or self._ensure_base_model_loaded()
+        tokenizer = self._ensure_tokenizer_loaded()
+
+        try:
+            torch = importlib.import_module("torch")
+            model.eval()
+
+            if self._active_adapter and hasattr(model, "set_adapter"):
+                model.set_adapter(self._active_adapter)
+
+            encoded = tokenizer(prompt, return_tensors="pt")
+            try:
+                model_device = next(model.parameters()).device
+                encoded = {key: value.to(model_device) for key, value in encoded.items()}
+            except Exception:  # noqa: BLE001
+                pass
+
+            with torch.no_grad():
+                output_ids = model.generate(
+                    **encoded,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,
+                    pad_token_id=tokenizer.eos_token_id,
+                )
+
+            input_len = int(encoded["input_ids"].shape[1])
+            generated_ids = output_ids[0][input_len:]
+            text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+            return text if text else "\n"
+        except Exception:  # noqa: BLE001
+            return "\n    # generation unavailable"
+
     def _load_adapter(self, adapter_id: str) -> None:
         model = self._ensure_base_model_loaded()
         adapter_path = self._adapter_dir / adapter_id
@@ -136,6 +175,23 @@ class PyTorchPeftRuntime(RuntimeBackend):
 
         self._base_model = auto_model_cls.from_pretrained(self._base_model_id, **model_kwargs)
         return self._base_model
+
+    def _ensure_tokenizer_loaded(self) -> Any:
+        if self._tokenizer is not None:
+            return self._tokenizer
+
+        try:
+            transformers = importlib.import_module("transformers")
+        except ImportError as exc:  # pragma: no cover - exercised via factory fallback
+            raise RuntimeError(
+                "transformers is required for PyTorchPeftRuntime. Install LoRA-JIT with the runtime extras."
+            ) from exc
+
+        auto_tokenizer_cls = getattr(transformers, "AutoTokenizer")
+        self._tokenizer = auto_tokenizer_cls.from_pretrained(self._base_model_id, use_fast=True)
+        if self._tokenizer.pad_token is None:
+            self._tokenizer.pad_token = self._tokenizer.eos_token
+        return self._tokenizer
 
     def _default_adapter_loader(self, model: Any, adapter_path: Path, adapter_id: str) -> Any:
         try:

@@ -42,6 +42,7 @@ What is real right now:
 - Sequence-aware trace repair via heartbeat resync
 - Benchmark compile → annotate → compare workflow
 - Live `POST /jit/route` orchestration
+- Live `POST /jit/complete` generation over the active runtime adapter
 - VS Code status bar + output channel visualization
 - Offline training + live loading of a lightweight learned router artifact
 
@@ -241,6 +242,24 @@ python scripts/run-daemon.py
 ```
 
 The daemon will attempt to boot `PyTorchPeftRuntime`. If something is missing, it logs the failure and safely falls back to `MockRuntime`.
+
+## Completion loop (`/jit/complete`) ✨
+
+LoRA-JIT now exposes a generation endpoint that uses the currently active runtime adapter.
+
+Flow:
+
+1. `/jit/route` activates an adapter.
+2. `/jit/complete` receives editor context (`prefix` + optional `suffix`).
+3. Runtime backend generates completion text using active adapter state.
+
+Response fields:
+
+- `completion_text`
+- `active_adapter_used`
+- `generation_latency_ms`
+
+The VS Code extension now issues a debounce-delayed `/jit/complete` call after typing pauses and logs completion timing in the LoRA-JIT output channel.
 
 To reduce first-route cold misses, you can optionally preload a boot-time hot set:
 
