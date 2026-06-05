@@ -1,0 +1,16 @@
+title: LoRA-JIT
+description: Context-aware LoRA adapter routing for VS Code
+theme: jekyll-theme-minimal
+url: "https://anandb71.github.io"
+baseurl: "/LoRA-jit"
+
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+  collections: true
+
+include:
+  - assets
