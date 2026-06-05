@@ -25,3 +25,13 @@ data/sql_postgres/train.jsonl
 **/_trainer_tmp/
 PATENT_REPORT.md
 docs/CLAIM_CHART_DRAFT.md
+
+# Internal launch / GTM (local only — not published)
+LAUNCH_NOW.md
+RELEASE_v*.md
+docs/LAUNCH.md
+docs/SOCIAL.md
+docs/GTM.md
+docs/GITHUB_PROFILE_README.md
+scripts/configure-github-repo.ps1
+scripts/launch-smoke.ps1

@@ -101,4 +101,3 @@ See [BENCHMARK.md](./BENCHMARK.md) for methodology.
 - **Try it in 10 minutes:** [QUICKSTART.md](./QUICKSTART.md)
 - **Understand the architecture:** [ARCHITECTURE.md](./ARCHITECTURE.md)
 - **Audit for production use:** [AUDIT.md](./AUDIT.md)
-- **Commercial / launch strategy:** [GTM.md](./GTM.md)

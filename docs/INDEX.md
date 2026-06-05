@@ -15,10 +15,6 @@ Welcome to the documentation hub for **LoRA-JIT** — a local, benchmark-first s
 | [ADAPTER_ONTOLOGY.md](./ADAPTER_ONTOLOGY.md) | Contributors | Canonical adapter ID registry |
 | [FAQ.md](./FAQ.md) | Troubleshooters | Common errors and honest capability limits |
 | [AUDIT.md](./AUDIT.md) | Reviewers & auditors | Release readiness checklist and known gaps |
-| [GTM.md](./GTM.md) | Founders & PMs | Go-to-market strategy and positioning |
-| [LAUNCH.md](./LAUNCH.md) | Launch day | Checklist and week-1 playbook |
-| [SOCIAL.md](./SOCIAL.md) | Launch day | Copy-paste HN, Reddit, X, LinkedIn posts |
-| [GITHUB_PROFILE_README.md](./GITHUB_PROFILE_README.md) | @Anandb71 | Pin LoRA-JIT on your GitHub profile |
 
 ---
 

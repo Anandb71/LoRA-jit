@@ -21,7 +21,7 @@ classification → adapter paging → GPU activation → token generation.
 > Completions are available via API and logged in VS Code; inline ghost text is on the roadmap.
 > See [docs/OVERVIEW.md](./docs/OVERVIEW.md) for an honest capability summary.
 
-**Documentation hub:** [docs/INDEX.md](./docs/INDEX.md) · **Launch today:** [LAUNCH_NOW.md](./LAUNCH_NOW.md)
+**Documentation hub:** [docs/INDEX.md](./docs/INDEX.md)
 
 ---
 
@@ -342,9 +342,6 @@ npm run lint              # TypeScript type-check
 | [docs/ADAPTER_ONTOLOGY.md](./docs/ADAPTER_ONTOLOGY.md) | Authoritative adapter ID registry |
 | [docs/FAQ.md](./docs/FAQ.md) | Troubleshooting and common questions |
 | [docs/AUDIT.md](./docs/AUDIT.md) | Public release audit and maturity matrix |
-| [docs/GTM.md](./docs/GTM.md) | Go-to-market strategy and positioning |
-| [docs/LAUNCH.md](./docs/LAUNCH.md) | Launch checklist and week-1 playbook |
-| [docs/SOCIAL.md](./docs/SOCIAL.md) | Copy-paste posts for HN, Reddit, X, LinkedIn |
 | [CHANGELOG.md](./CHANGELOG.md) | Version history |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Development setup and PR checklist |
 | [SECURITY.md](./SECURITY.md) | Vulnerability reporting policy |
