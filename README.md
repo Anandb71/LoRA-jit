@@ -21,7 +21,7 @@ classification → adapter paging → GPU activation → token generation.
 > Completions are available via API and logged in VS Code; inline ghost text is on the roadmap.
 > See [docs/OVERVIEW.md](./docs/OVERVIEW.md) for an honest capability summary.
 
-**Documentation hub:** [docs/INDEX.md](./docs/INDEX.md)
+**Documentation hub:** [docs/INDEX.md](./docs/INDEX.md) · **Launch today:** [LAUNCH_NOW.md](./LAUNCH_NOW.md)
 
 ---
 
