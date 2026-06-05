@@ -21,7 +21,7 @@ classification → adapter paging → GPU activation → token generation.
 > Completions are available via API and logged in VS Code; inline ghost text is on the roadmap.
 > See [docs/OVERVIEW.md](./docs/OVERVIEW.md) for an honest capability summary.
 
-**Documentation hub:** [docs/INDEX.md](./docs/INDEX.md) · **Docs site:** https://anandb71.github.io/LoRA-jit/
+**Documentation hub:** [docs/index.md](./docs/index.md) · **Docs site:** https://anandb71.github.io/LoRA-jit/
 
 ---
 
@@ -334,7 +334,7 @@ npm run lint              # TypeScript type-check
 
 | Document | Description |
 |----------|-------------|
-| [docs/INDEX.md](./docs/INDEX.md) | Documentation hub — start here |
+| [docs/index.md](./docs/index.md) | Documentation hub — start here |
 | [docs/OVERVIEW.md](./docs/OVERVIEW.md) | What LoRA-JIT is and is not |
 | [docs/QUICKSTART.md](./docs/QUICKSTART.md) | Cross-platform install and GPU path |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Component design, data flows, runtime tiers |

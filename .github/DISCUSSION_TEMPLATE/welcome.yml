@@ -11,7 +11,7 @@ body:
         LoRA-JIT is open **adapter routing infrastructure** for VS Code — measure which LoRA specialist to load from editor context, with published benchmarks.
 
         **Quick links:**
-        - [Documentation hub](https://github.com/Anandb71/LoRA-jit/blob/main/docs/INDEX.md)
+        - [Documentation hub](https://github.com/Anandb71/LoRA-jit/blob/main/docs/index.md)
         - [10-minute quickstart](https://github.com/Anandb71/LoRA-jit/blob/main/docs/QUICKSTART.md)
 
         **Try without a GPU:**

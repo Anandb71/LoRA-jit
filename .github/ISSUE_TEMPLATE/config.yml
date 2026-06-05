@@ -5,5 +5,5 @@ contact_links:
     url: https://github.com/Anandb71/LoRA-jit/discussions
     about: Ask questions, share benchmarks, and showcase your adapter setups
   - name: Documentation hub
-    url: https://github.com/Anandb71/LoRA-jit/blob/main/docs/INDEX.md
+    url: https://github.com/Anandb71/LoRA-jit/blob/main/docs/index.md
     about: Full documentation index
