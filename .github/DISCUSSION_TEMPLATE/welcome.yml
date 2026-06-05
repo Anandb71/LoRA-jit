@@ -1,0 +1,47 @@
+name: Welcome to LoRA-JIT
+description: Start here — ask questions, share benchmarks, request adapters
+labels:
+  - welcome
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Welcome 👋
+
+        LoRA-JIT is open **adapter routing infrastructure** for VS Code — measure which LoRA specialist to load from editor context, with published benchmarks.
+
+        **Quick links:**
+        - [Documentation hub](https://github.com/Anandb71/LoRA-jit/blob/main/docs/INDEX.md)
+        - [10-minute quickstart](https://github.com/Anandb71/LoRA-jit/blob/main/docs/QUICKSTART.md)
+        - [Launch / social copy](https://github.com/Anandb71/LoRA-jit/blob/main/docs/SOCIAL.md)
+
+        **Try without a GPU:**
+        ```bash
+        pytest tests/ -v
+        python scripts/run-benchmark.py examples/sample-trace.json --compare
+        ```
+
+        Maintainer: [@Anandb71](https://github.com/Anandb71)
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: What brings you here?
+      options:
+        - Evaluating routing benchmarks
+        - Training adapters
+        - VS Code extension / IDE integration
+        - Enterprise / on-prem evaluation
+        - Contributing code or traces
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Your question or intro
+      description: What adapter domains matter most to you?
+    validations:
+      required: false
+
+title: Welcome — introduce yourself

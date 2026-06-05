@@ -13,7 +13,7 @@
   <rect x="60" y="60" width="1080" height="510" rx="14" fill="url(#card)" stroke="#263244"/>
 
   <text x="95" y="125" fill="#e5e7eb" font-family="Segoe UI, Arial, sans-serif" font-size="46" font-weight="700">LoRA-JIT</text>
-  <text x="95" y="165" fill="#93c5fd" font-family="Segoe UI, Arial, sans-serif" font-size="22">Context-aware JIT LoRA Paging in VS Code</text>
+  <text x="95" y="165" fill="#93c5fd" font-family="Segoe UI, Arial, sans-serif" font-size="22">Measure your routing. Then ship your completions.</text>
 
   <rect x="95" y="205" width="1010" height="300" rx="10" fill="#0a0f1a" stroke="#1f2937"/>
   <text x="120" y="255" fill="#38bdf8" font-family="Consolas, monospace" font-size="22">[ROUTER]</text>

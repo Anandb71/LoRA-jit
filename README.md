@@ -1,5 +1,9 @@
 # LoRA-JIT
 
+<p align="center">
+  <img src="docs/assets/demo-teaser.svg" alt="LoRA-JIT — context-aware LoRA adapter routing" width="920" />
+</p>
+
 **Context-aware LoRA adapter routing for real-time code generation inside VS Code.**
 
 LoRA-JIT watches your editor, classifies what you are working on, and hot-swaps a
@@ -10,6 +14,14 @@ classification → adapter paging → GPU activation → token generation.
 [![CI](https://github.com/Anandb71/LoRA-jit/actions/workflows/ci.yml/badge.svg)](https://github.com/Anandb71/LoRA-jit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+
+> **Measure your routing. Then ship your completions.**
+>
+> LoRA-JIT is open adapter routing infrastructure — not a Copilot clone.
+> Completions are available via API and logged in VS Code; inline ghost text is on the roadmap.
+> See [docs/OVERVIEW.md](./docs/OVERVIEW.md) for an honest capability summary.
+
+**Documentation hub:** [docs/INDEX.md](./docs/INDEX.md)
 
 ---
 
@@ -71,11 +83,21 @@ examples/         Sample traces and seed router artifacts
 
 ## Quick start
 
+Full cross-platform guide: [docs/QUICKSTART.md](./docs/QUICKSTART.md)
+
 ### 1 — Install
 
 ```powershell
+# Windows
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
+pip install -e .[dev]
+```
+
+```bash
+# macOS / Linux
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -e .[dev]
 ```
 
@@ -164,6 +186,12 @@ python scripts/verify-adapter.py adapters/sql_postgres
 ```
 
 ### 5 — Configure `.env` for real runtime
+
+```bash
+cp .env.example .env
+```
+
+Key settings (see [`.env.example`](./.env.example) for all options):
 
 ```dotenv
 LORA_JIT_RUNTIME_BACKEND=pytorch
@@ -306,9 +334,17 @@ npm run lint              # TypeScript type-check
 
 | Document | Description |
 |----------|-------------|
+| [docs/INDEX.md](./docs/INDEX.md) | Documentation hub — start here |
+| [docs/OVERVIEW.md](./docs/OVERVIEW.md) | What LoRA-JIT is and is not |
+| [docs/QUICKSTART.md](./docs/QUICKSTART.md) | Cross-platform install and GPU path |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Component design, data flows, runtime tiers |
 | [docs/BENCHMARK.md](./docs/BENCHMARK.md) | Benchmark methodology and full trace workflow |
 | [docs/ADAPTER_ONTOLOGY.md](./docs/ADAPTER_ONTOLOGY.md) | Authoritative adapter ID registry |
+| [docs/FAQ.md](./docs/FAQ.md) | Troubleshooting and common questions |
+| [docs/AUDIT.md](./docs/AUDIT.md) | Public release audit and maturity matrix |
+| [docs/GTM.md](./docs/GTM.md) | Go-to-market strategy and positioning |
+| [docs/LAUNCH.md](./docs/LAUNCH.md) | Launch checklist and week-1 playbook |
+| [docs/SOCIAL.md](./docs/SOCIAL.md) | Copy-paste posts for HN, Reddit, X, LinkedIn |
 | [CHANGELOG.md](./CHANGELOG.md) | Version history |
 | [CONTRIBUTING.md](./CONTRIBUTING.md) | Development setup and PR checklist |
 | [SECURITY.md](./SECURITY.md) | Vulnerability reporting policy |

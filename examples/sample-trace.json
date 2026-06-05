@@ -2,31 +2,31 @@
   {
     "event": {
       "session_id": "demo-1",
-      "file_path": "src/services/payment/processor.py",
+      "file_path": "src/api/payments/router.py",
       "language_id": "python",
       "cursor_line": 42,
       "cursor_column": 8,
-      "symbols_in_scope": ["PaymentService", "validate_card"],
+      "symbols_in_scope": ["PaymentRouter", "validate_card"],
       "metadata": {
         "workspace": "demo",
-        "query": "help me fix payment service validation bug"
+        "query": "fix fastapi endpoint validation for payment router"
       }
     },
-    "expected_adapter": "paymentservice"
+    "expected_adapter": "fastapi_service"
   },
   {
     "event": {
       "session_id": "demo-1",
-      "file_path": "src/services/payment/processor.py",
+      "file_path": "src/api/payments/router.py",
       "language_id": "python",
       "cursor_line": 58,
       "cursor_column": 2,
-      "symbols_in_scope": ["PaymentService", "charge"],
+      "symbols_in_scope": ["PaymentRouter", "charge"],
       "metadata": {
         "workspace": "demo",
-        "query": "optimize paymentservice charge flow"
+        "query": "optimize fastapi router charge endpoint"
       }
     },
-    "expected_adapter": "paymentservice"
+    "expected_adapter": "fastapi_service"
   }
 ]

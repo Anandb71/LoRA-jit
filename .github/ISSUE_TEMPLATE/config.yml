@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Questions & ideas
+    url: https://github.com/Anandb71/LoRA-jit/discussions
+    about: Ask questions, share benchmarks, and showcase your adapter setups
+  - name: Launch playbook
+    url: https://github.com/Anandb71/LoRA-jit/blob/main/docs/LAUNCH.md
+    about: Social launch copy and week-1 checklist
+  - name: Documentation hub
+    url: https://github.com/Anandb71/LoRA-jit/blob/main/docs/INDEX.md
+    about: Full documentation index

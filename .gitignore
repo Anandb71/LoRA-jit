@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 .env
 .env.*
+!.env.example
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -22,3 +23,5 @@ adapters/*/
 !adapters/.gitkeep
 data/sql_postgres/train.jsonl
 **/_trainer_tmp/
+PATENT_REPORT.md
+docs/CLAIM_CHART_DRAFT.md

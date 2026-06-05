@@ -1,0 +1,36 @@
+name: Showcase
+description: Share your LoRA-JIT benchmark results, adapter setup, or integration
+title: "[Showcase] "
+labels:
+  - showcase
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Show the community how you're using LoRA-JIT. Benchmarks, adapter recipes, and integrations welcome.
+
+  - type: input
+    id: setup
+    attributes:
+      label: Setup summary
+      description: GPU, base model, adapters, predictor type
+      placeholder: "RTX 4090, Qwen1.5-0.5B, sql_postgres + fastapi_service, learned router"
+    validations:
+      required: true
+
+  - type: textarea
+    id: results
+    attributes:
+      label: Results or demo
+      description: Benchmark numbers, screenshots, or links
+      placeholder: "top1_accuracy: 0.94, warm route: 8ms, link to trace..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Tips for others
+      description: What worked, what didn't
+    validations:
+      required: false

@@ -7,19 +7,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.6.0] — 2026-06-06
+
 ### Added
-- `POST /jit/preload` endpoint for on-demand adapter warming.
-- Approximate MB-budget paging in `PagingSimulator` via `LORA_JIT_MAX_HOT_MB` and
-  `LORA_JIT_MAX_HOT_ADAPTERS`.
-- `JitRoutingDecision` fields: `evicted_adapters`, `total_hot_mb`.
-- Console entry points in package metadata:
-  - `lora-jit-daemon`
-  - `lora-jit-benchmark`
-  - `lora-jit-compile`
-  - `lora-jit-annotate`
-- Minimal public Python API exports from `backend.__init__`.
+- Documentation hub at `docs/INDEX.md` with OVERVIEW, QUICKSTART, FAQ, AUDIT, and GTM guides.
+- Launch playbook (`docs/LAUNCH.md`) and copy-paste social posts (`docs/SOCIAL.md`).
+- GitHub community files: Discussions template, showcase issue template, SUPPORT, FUNDING.
+- GitHub Pages workflow for documentation site.
+- HuggingFace model card template at `docs/huggingface/MODEL_CARD.md`.
+- Profile README template to pin LoRA-JIT on @Anandb71's GitHub profile.
+- `scripts/launch-smoke.ps1` for demo and launch verification.
+- `.env.example` for GPU path onboarding.
+- `vscode-extension/README.md` with extension setup and settings reference.
+- Cross-platform install snippets in README and QUICKSTART (bash + PowerShell).
+- PyPI-oriented project metadata: license, authors, classifiers, and repository URLs.
 
 ### Changed
+- README positioning: honest capability summary and link to audit docs.
+- `examples/sample-trace.json` uses ontology-valid `fastapi_service` adapter IDs.
+- Package and extension version aligned to `0.6.0`.
 - Predictor protocol boundary now enforces `RoutingDecision` return type.
 - Runtime config supports `LORA_JIT_STRICT_RUNTIME`.
 
@@ -27,6 +35,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `PyTorchPeftRuntime.generate()` now handles tokenizer/model load failures inside strict fallback path.
 - Runtime failures are now logged with structured metadata, and strict mode surfaces HTTP 500 from
   `/jit/complete` instead of silently returning stub text.
+
+Also includes all changes previously tracked under Unreleased since 0.5.0:
+- `POST /jit/preload` endpoint for on-demand adapter warming.
+- Approximate MB-budget paging in `PagingSimulator` via `LORA_JIT_MAX_HOT_MB` and
+  `LORA_JIT_MAX_HOT_ADAPTERS`.
+- `JitRoutingDecision` fields: `evicted_adapters`, `total_hot_mb`.
+- Console entry points: `lora-jit-daemon`, `lora-jit-benchmark`, `lora-jit-compile`, `lora-jit-annotate`.
+- Minimal public Python API exports from `backend.__init__`.
 
 ---
 
